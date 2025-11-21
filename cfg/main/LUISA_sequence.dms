@@ -1,0 +1,405 @@
+container LUISA_sequence: Using = "Boundaries;", Descr = "Procedures to iteratively produce 1km narrow age class breakdowns based on LUISA general population results and additional assumptions" {
+	
+	parameter<string> LUISA_ref: ['LUISA_Ref20'];
+	
+	unit<uint32> timesteps: expr = "range(uint32, 0, 8)", Descr = "Timesteps in the outputs from the LUISA model" {
+		attribute<uint32> Year: 	expr = "2015 + (id(.) * 5)";
+		attribute<string> sYear: 	expr = "'P'+string(Year)";
+		attribute<string> prev:		expr = "id(.) > 0 ? sYear[id(.)-1] : 'PreparationRef'";
+	}
+	unit<uint32> outputs: 	expr = "combine(timesteps, AgeClasses)", Descr = "All outputs that need to be generated for every country" {
+		attribute<string> name: expr = "timesteps/sYear[nr_1]+'_x_'+AgeClasses/LabelText[nr_2]";
+	}
+	
+	container Preparation: expr = "for_each_ne(RunAreas/name, 'PrepareSequence('+string(id(RunAreas))+', Geography/JrcRegions100m/'+RunAreas/name+', Geography/JrcRegions1000m/'+RunAreas/name+')')", Descr = "Preparation of the breakdown procedure" {
+		Container ScenarioDemographics: Descr = "General inputs (valid for all countries)" {
+			unit<uint32> inFemPerc: StorageName = "%LocalDataProjDir%/EU_results/fem_perc.dbf", StorageReadOnly = "True";
+			unit<uint32> realbigunit: NrOfRows = 20000000, Descr = "Large unit definition instrumental to load the projections";
+			container LoadProjections: 		expr = "Templates/loadDataFile_txt('%SourceDataProjDir%/data/projections/proj_13rpms3_totals_n3.csv', realbigunit, ',')";
+			container LoadProjections19: 	expr = "Templates/loadDataFile_txt('%SourceDataProjDir%/data/projections/proj_19rp3.csv', realbigunit, ',')";
+			unit<uint32> Projections: 	expr = "LoadProjections/Data", Descr = "Processed regional projections data (EUROPOP13)" {
+				attribute<Gender> 			GenderType: expr = "rlookup(Values/Sex, Gender/LabelText)";
+				attribute<Nuts3_Boundaries> N3_id: 		expr = "rlookup(replace(Values/Geo, 'EL', 'GR'), Nuts3_Boundaries/ZoneId)";
+				attribute<float32>			Value: 		expr = "float32(Values/R_VAL)";
+				attribute<uint32>			RawAge:		expr = "switch(case(Values/Age = 'Y_LT1', 0), case(Values/Age = 'Y_GE100', 100), uint32(substr(Values/Age, 1, strlen(Values/Age)-1)))";
+				attribute<AgeClasses>		ac_id:		expr = "classify(RawAge, AgeClasses/from)";
+				attribute<uint32>			Year:		expr = "uint32(Values/R_YEAR)";
+				attribute<timesteps> 		ts_id:		expr = "rlookup(Year, timesteps/year)";
+				attribute<uint32> 			obs (Nuts3_Boundaries): expr = "pcount(N3_id)";
+			}
+			unit<uint32> Projections19: 	expr = "LoadProjections19/Data", Descr = "Processed regional projections data (projections 2019)" {
+				attribute<Gender> 			GenderType: expr = "rlookup(Values/Sex, Gender/LabelText)";
+				attribute<Nuts3_Boundaries> N3_id: 		expr = "rlookup(replace(Values/Geo, 'EL', 'GR'), Nuts3_Boundaries/ZoneId)";
+				attribute<float32>			Value: 		expr = "float32(Values/R_VAL)";
+				attribute<uint32>			RawAge:		expr = "switch(case(Values/Age = 'Y_LT1', 0), case(Values/Age = 'Y_GE100', 100), uint32(substr(Values/Age, 1, strlen(Values/Age)-1)))";
+				attribute<AgeClasses>		ac_id:		expr = "classify(RawAge, AgeClasses/from)";
+				//attribute<uint32>			Year:		expr = "uint32(Values/R_YEAR)";
+				//attribute<timesteps> 		ts_id:		expr = "rlookup(Year, timesteps/year)";
+				attribute<uint32> 			obs (Nuts3_Boundaries): expr = "pcount(N3_id)";
+				
+				container datavalues: expr = "for_each_nedv(proj_years/sYear, 'uint32(LoadProjections19/Data/Values/'+proj_years/sYear+')',Projections19,uint32)";
+				
+				
+				unit<uint32> proj_years: expr = "range(uint32, 0, 17)" {
+					attribute<uint32> Year: 	expr = "2020 + (id(.)*5)";
+					attribute<string> sYear: 	expr = "'y'+string(Year)";
+				}
+			}
+			container FemaleFertility: 	expr = "Templates/TableChopper_transposed('%SourceDataProjDir%/data/'+LUISA_ref+'/Fertility/Females', ',', RunAreas)", Descr = "Scenario-specific fertility estimates";
+			container FemaleMortality: 	expr = "Templates/TableChopper_transposed('%SourceDataProjDir%/data/'+LUISA_ref+'/Mortality/Females', ',', RunAreas)", Descr = "Scenario-specific female mortality estimates";
+			container MaleMortality: 	expr = "Templates/TableChopper_transposed('%SourceDataProjDir%/data/'+LUISA_ref+'/Mortality/Males', ',', RunAreas)", Descr = "Scenario-specific male mortality estimates";
+		}
+	}
+	
+	container ModelSequence: expr = "for_each_ne(RunAreas/name, 'GovernSequence('+string(id(RunAreas))+')')";
+	
+	container SequenceMozaiks: expr = "for_each_ne(outputs/name, 'doMozaikResults('+string(outputs/nr_1)+', '+string(outputs/nr_2)+')')" {
+		parameter<bool> StoreAll_Pop: expr = "True", ExplicitSuppliers = "= AsList(outputs/name + '/pop_merged', ';')";
+		parameter<bool> StoreAll_Fem: expr = "True", ExplicitSuppliers = "= AsList(outputs/name + '/fem_merged', ';')";
+		attribute<uint16> ragrid (Geography/LambertEA/m1000): expr = "uint16(poly2grid(RunAreas/Geometry, Geography/LambertEA/m1000))";
+		
+	}
+	
+	Template doMozaikResults {
+		parameter<timesteps>  inStep;
+		parameter<AgeClasses> inAgeClass;
+		attribute<float32> pop_merged (Geography/LambertEA/m1000): 
+			expr = "= 'raster_merge(ragrid, float32, '+AsItemList('ModelSequence/'+RunAreas/name+'/ModelSequence/'+timesteps/sYear[inStep]+'/LoadPopBreakDown_RA/'+AgeClasses/LabelText[inAgeClass]+'/inFile/ReadData')+')'", 
+			StorageName = "= '%LocalDataProjDir%/LUISA_sequence/'+LUISA_ref+'/EU/'+timesteps/sYear[inStep]+'/'+AgeClasses/LabelText[inAgeClass]+'.tif'";	
+		attribute<float32> fem_merged (Geography/LambertEA/m1000): 
+			expr = "= 'raster_merge(ragrid, float32, '+AsItemList('ModelSequence/'+RunAreas/name+'/ModelSequence/'+timesteps/sYear[inStep]+'/LoadFemBreakDown_RA/'+AgeClasses/LabelText[inAgeClass]+'/inFile/ReadData')+')'", 
+			StorageName = "= '%LocalDataProjDir%/LUISA_sequence/'+LUISA_ref+'/EU/'+timesteps/sYear[inStep]+'/fem/'+AgeClasses/LabelText[inAgeClass]+'.tif'";	
+	}
+	Template GovernSequence {
+		parameter<RunAreas> inArea;
+		
+		container PreparationRef: expr = "= 'Preparation/'+RunAreas/name[inArea]";
+		
+		container ModelSequence: expr = "for_each_ne(timesteps/sYear, 'doModelSequence('+string(id(timesteps))+', PreparationRef/domain_grid, PreparationRef/domain_1000m, '+timesteps/prev+', PreparationRef/LUISA_gen_pop/PopFiles)')";
+		
+		container Result_summary: Using = "PreparationRef" {
+			parameter<string> firstPath: 	expr = "= 'ModelSequence/'+timesteps/sYear[0]+'/ExportPath'";
+			parameter<string> lastPath:		expr = "= 'ModelSequence/'+timesteps/sYear[max(id(timesteps))]+'/ExportPath'";
+			unit<wpoint> domain_1k: 		expr = "domain_1000m";
+			container LoadFirstResults: 	expr = "for_each_ne(AgeClasses/LabelText, 'Templates/loadDataFile_float32tiff('+quote(firstPath + AgeClasses/LabelText)+', domain_1k)')";
+			container LoadLastResults: 		expr = "for_each_ne(AgeClasses/LabelText, 'Templates/loadDataFile_float32tiff('+quote(lastPath + AgeClasses/LabelText)+', domain_1k)')";
+			container BroadFirstResults: 	expr = "for_each_nedv(BroadClasses/LabelText, 'add('+AsItemList('LoadFirstResults/'+AgeClasses/LabelText+'/inFile/ReadData', AgeClasses/Broadfrom)+')', domain_1k, float32)" {
+				attribute<float32> Over65 	(domain_1k): expr = "y65t84 + Over85";
+				attribute<float32> Total	(domain_1k): expr = "= 'add('+AsItemList(BroadClasses/LabelText)+')'";
+			}
+			container BroadLastResults:		expr = "for_each_nedv(BroadClasses/LabelText, 'add('+AsItemList('LoadLastResults/'+AgeClasses/LabelText+'/inFile/ReadData', AgeClasses/Broadfrom)+')', domain_1k, float32)"  {
+				attribute<float32> Over65 	(domain_1k): expr = "y65t84 + Over85";
+				attribute<float32> Total	(domain_1k): expr = "= 'add('+AsItemList(BroadClasses/LabelText)+')'";
+			}
+			container RelFirstResults:		expr = "for_each_nedv(BroadClasses/LabelText, 'BroadFirstResults/'+BroadClasses/LabelText+' / BroadFirstResults/Total', domain_1k, float32)" {
+				attribute<float32> Over65 	(domain_1k): expr = "y65t84 + Over85";
+			}
+			container RelLastResults:		expr = "for_each_nedv(BroadClasses/LabelText, 'BroadLastResults/'+BroadClasses/LabelText+' / BroadLastResults/Total', domain_1k, float32)" {
+				attribute<float32> Over65 	(domain_1k): expr = "y65t84 + Over85";
+			}
+			container AbsDifferences: expr = "for_each_nedv(BroadClasses/LabelText, 'BroadLastResults/'+BroadClasses/LabelText+' - BroadFirstResults/'+BroadClasses/LabelText, domain_1k, float32)" {
+				attribute<float32> Over65 	(domain_1k): expr = "y65t84 + Over85";
+				attribute<float32> Total	(domain_1k): expr = "BroadLastResults/total - BroadFirstResults/total";
+			}
+			container RelDifferences: expr = "for_each_nedv(BroadClasses/LabelText, '(BroadLastResults/'+BroadClasses/LabelText+'/ BroadLastResults/Total) - (BroadFirstResults/'+BroadClasses/LabelText+' / BroadFirstResults/Total)', domain_1k, float32)" {
+				attribute<float32> Over65  	(domain_1k): expr = "(BroadLastResults/Over65 / BroadLastResults/Total) - (BroadFirstResults/Over65 / BroadFirstResults/Total)";
+			}
+			container Correlations: expr = "for_each_nedv(BroadClasses/LabelText, 'corr(RelFirstResults/'+BroadClasses/LabelText+', RelDifferences/'+BroadClasses/LabelText+')', void, float32)";
+		}
+	}
+	
+	
+	
+	
+	Template doModelSequence {
+		parameter<timesteps> inYear;
+		unit<wpoint> domain_grid;
+		unit<wpoint> domain_1k;
+		container PrevState;
+		container Qi_Ref;
+		
+		parameter<string> ExportPath: expr = "'%LocalDataProjDir%/LUISA_sequence/'+LUISA_ref+'/'+RunAreas/name[inArea]+'/'+timesteps/sYear[inYear]+'/'";
+		
+		container Demographics: 				expr = "doDemographics(inYear, PreparationRef/Zones, PreparationRef/ProjectedYears_x_ageclasses)";
+		container ModelPopulationDistribution:	expr = "Qi_Ref" {
+			attribute<float32> Qi (domain_grid): expr = "= timesteps/sYear[inYear]";
+		}
+		container ModelPopulationBreakdown: 	expr = "doPopulationBreakdown(domain_grid, PreparationRef/ZOnes, PreparationRef/ZonesRaster)";
+		container PopulationBreakdown: expr = "ModelPopulationBreakdown/DefPopulationBreakdown";
+		
+		container Store100mDifferences: expr = "for_each_nedva(AgeClasses/LabelText, 'PopulationBreakdown/'+AgeClasses/LabelText+' - PrevState/PopulationBreakdown/'+AgeClasses/LabelText, domain_grid, float32, ExportPath+'d_100m/'+AgeClasses/LabelText+'.tif')";
+		container StorePopBreakdown: expr = "for_each_nedva(AgeClasses/LabelText, 'sum(PopulationBreakdown/'+AgeClasses/LabelText+', PreparationRef/rel_1k)', domain_1k, float32,ExportPath+AgeClasses/LabelText+'.tif')" {
+			attribute<float32> total (domain_1k): expr = "sum(PopulationBreakdown/summed, PreparationRef/rel_1k)", StorageName = "= ExportPath+'total.tif'";}
+		container StoreFemalesBreakdown: expr = "for_each_nedva(AgeClasses/LabelText, 'sum(PopulationBreakdown/Females/'+AgeClasses/LabelText+', PreparationRef/rel_1k)', domain_1k, float32,ExportPath+'fem_'+AgeClasses/LabelText+'.tif')" {
+			attribute<float32> total (domain_1k): expr = "sum(PopulationBreakdown/Females/summed, PreparationRef/rel_1k)", StorageName = "= ExportPath+'fem_total.tif'";
+			attribute<float32> perc  (domain_1k): expr = "total / StorePopBreakdown/total", StorageName = "= ExportPath+'fem_perc.tif'";
+		}
+		parameter<bool> StoreResults: expr = "True", ExplicitSuppliers = "= 'StorePopBreakdown;StoreFemalesBreakdown;'+ (inYear > 0 ? 'PrevState/StoreResults' : '')";
+		
+		container D100m: 				expr = "for_each_ne(AgeClasses/LabelText, 'Templates/loadDataFile_float32tiff('+quote(ExportPath+'d_100m/'+AgeClasses/LabelText)+', domain_grid)')";
+		container LoadPopBreakDown_RA:  expr = "for_each_ne(AgeClasses/LabelText, 'Templates/loadDataFile_float32tiff('+quote(ExportPath+AgeClasses/LabelText)+', domain_1k)')";
+		container LoadFemBreakDown_RA:  expr = "for_each_ne(AgeClasses/LabelText, 'Templates/loadDataFile_float32tiff('+quote(ExportPath+'fem_'+AgeClasses/LabelText)+', domain_1k)')";
+		//container difPopBreakDown_RA: expr = "for_each_nedv(AgeClasses/LabelText, 'LoadPopBreakDown_RA/'+AgeClasses/LabelText+'/inFile/ReadData - PrevState/LoadPopBreakDown_RA/'+AgeClasses/LabelText+'/inFile/ReadData', domain_1k, float32)";
+		
+	}
+	
+
+	Template PrepareSequence {
+		
+		parameter<RunAreas> inArea;
+		unit<wpoint> domain_grid;
+		unit<wpoint> domain_1000m;
+		
+		attribute<domain_1000m> rel_1k (domain_grid): expr = "id(domain_grid)[domain_1000m]";
+		
+		attribute<NUTS3_boundaries> N3Raster 	(domain_grid): expr = "poly2grid(NUTS3_boundaries/Geometry, domain_grid)";
+		attribute<Zones>			ZonesRaster	(domain_grid): expr = "rlookup(N3Raster, Zones/Nr_OrgEntity)";
+		attribute<float32>			Sel			(domain_grid): expr = "float32(IsDefined(ZonesRaster))";
+		attribute<DegUrba_lv1> 		degurba		(domain_grid): expr = "rlookup(DegUrbaMap/LAU2s/inFile/DegUrba[DegUrbaMap/LAU2s/RasterIds], DegUrba_lv1/Code)";
+		
+		Container DegUrbaMap {
+			container LAU2s: expr = "Templates/loadDataFile_polyshp('%SourceDataProjDir%/data/'+LUISA_ref+'/Degurba/LAU2', domain_grid)" {
+				unit<uint32> inFile {
+					attribute<uint8> DegUrba (inFile): expr = "MakeDefined(rjoin(LAU2s/inFile/LAU2_Code, DegUrbaClasses/Data/LAU2_Code, uint8(DegUrbaClasses/Data/DegUrba)), uint8(3))";
+				}
+			}
+			container Degurbaclasses: expr = "Templates/loadDataFile_csv('%SourceDataProjDir%/data/'+LUISA_ref+'/Degurba/LAU2_DEGURBA_ID_v2', LAU2s/inFile, ',')";
+		}
+		
+		container degurba_modifiers: expr = "for_each_nedv(AgeClasses/LabelText, 'switch('+"
+			"'case(DegUrba = 0[DegUrba_lv1], AgeClasses/Urban_att['+string(id(AgeClasses))+']), case(DegUrba = 1[DegUrba_lv1], AgeClasses/Intermediate_att['+string(id(AgeClasses))+']), AgeClasses/Rural_att['+string(id(AgeClasses))+'])', domain_grid, float32)";
+		
+		Container LoadBreakdownFiles: expr = "for_each_ne(AgeClasses/LabelText, 'Templates/loadDataFile_float32tiff(' + quote('%LocalDataProjDir%/EU_results/'+AgeClasses/LabelText+'_fitted')+', domain_grid)')";
+		Container PopulationBreakdown: expr = "for_each_nedv(AgeClasses/LabelText, 'LoadBreakdownFiles/'+ AgeClasses/LabelText +'/inFile/ReadData * Sel', domain_grid, float32)" {
+			attribute<float32> summed 			(domain_grid): expr = "= 'Sel * add('+ AsItemList(AgeClasses/LabelText) +')'";
+			container Perc:			expr = "for_each_nedv(AgeClasses/LabelText, 'MakeDefined(PopulationBreakdown/'+AgeClasses/LabelText + ' / summed, 1f)', domain_grid, float32)";
+			container FemalePerc: 	expr = "for_each_nedv(AgeClasses/LabelText, 'rjoin(NUTS3_boundaries/ZoneId, ScenarioDemographics/inFemPerc/NutsID, float32(ScenarioDemographics/inFemPerc/'+AgeClasses/LabelText+'))[N3Raster]', domain_grid, float32)";
+			container Females: 		expr = "for_each_nedv(AgeClasses/LabelText, 'PopulationBreakdown/'+AgeClasses/LabelText+' * FemalePerc/'+AgeClasses/LabelText, domain_grid, float32)";
+			container Males:		expr = "for_each_nedv(AgeClasses/LabelText, 'PopulationBreakdown/'+AgeClasses/LabelText+' - Females/'+AgeClasses/LabelText, domain_grid, float32)";
+		}
+		Container LoadPopBreakDown_RA: expr = "LoadBreakdownFiles";
+
+		Container LUISA_gen_pop {
+			Container LoadFiles: expr = "for_each_ne(timesteps/sYear, 'Templates/loadDataFile_uint16tiff('+quote('%SourceDataProjDir%/data/'+LUISA_ref+'/EU/Population/Qi_'+string(timesteps/Year))+', domain_grid)')";
+			Container PopFiles:	expr = "for_each_nedv(timesteps/sYear, 'Sel * float32(LoadFiles/'+timesteps/sYear+'/inFile/ReadData)', domain_grid, float32)";
+				attribute<float32> First_Qi (NUTS3_boundaries): expr = "= 'sum(float32(LoadFiles/'+timesteps/sYear[0]+'/inFile/ReadData), N3Raster)'";
+			Container PopDif15:	expr = "for_each_nedv(timesteps/sYear, 'PopFiles/'+timesteps/sYear+'[Units/NrResidents] - PopFiles/P2015[Units/NrResidents]', domain_grid, Units/dNrResidents)";
+		}
+		
+		unit<uint32> Zones: expr = "subset(NUTS3_boundaries/RunAreaId = inArea && LUISA_gen_pop/First_Qi > 0f)" {
+			attribute<Geography/LambertEA> 	Geometry (polygon): expr = "NUTS3_boundaries/Geometry[Nr_OrgEntity]";
+			attribute<string>			   	ZoneId:				expr = "NUTS3_boundaries/ZoneId[Nr_OrgEntity]";
+			attribute<string>			   	LabelText:			expr = "ZoneId";
+		}
+		unit<uint32> inProjections: expr = "ScenarioDemographics/Projections";
+		unit<uint32> AreaProjections: expr = "subset(NUTS3_boundaries/RunAreaId[inProjections/N3_id] = inArea && IsDefined(inProjections/ac_id) && IsDefined(inProjections/ts_id) &&  inProjections/GenderType = 2)" {
+			attribute<uint32> 	  		RawAge: 	expr = "inProjections/RawAge[Nr_OrgEntity]";
+			attribute<AgeClasses> 		ac_id: 		expr = "inProjections/ac_id[Nr_OrgEntity]";
+			attribute<Nuts3_Boundaries> N3_id:  	expr = "inProjections/N3_id[Nr_OrgEntity]";
+			attribute<Zones>			Z_id:		expr = "rlookup(N3_id, Zones/Nr_OrgEntity)";
+			attribute<float32> 			Val:		expr = "inProjections/Value[Nr_OrgEntity]";
+			attribute<uint32>			Year:		expr = "inProjections/Year[Nr_OrgEntity]";
+			attribute<timesteps>		ts_id:		expr = "inProjections/ts_id[Nr_OrgEntity]";
+		}
+		
+		unit<uint32> ProjectedYears_x_ageclasses: expr = "combine(AgeClasses, timesteps)" {
+			attribute<upoint> 		uni: 				expr = "point(nr_1, findyear, upoint)";
+			attribute<uint32>		year:				expr = "uint32(timesteps/year[nr_2])";
+			attribute<bool>			datayear:			expr = "year = 2015 || mod(year, 10) = 0";
+			attribute<uint32>		findyear:			expr = "switch(case(!datayear && year > uint32(timesteps/Year[0]), year[id(.)-1]), case(!datayear && year == uint32(timesteps/Year[0]), year[id(.)+1]), year)";
+			attribute<float32>		MaleMortality: 		expr = "= 'ScenarioDemographics/MaleMortality/datapoints/aggr_values/'+RunAreas/zoneid[inArea]+'[rlookup(uni, ScenarioDemographics/MaleMortality/datapoints/uni)]'";
+			attribute<float32>		FemaleMortality: 	expr = "= 'ScenarioDemographics/FemaleMortality/datapoints/aggr_values/'+RunAreas/zoneid[inArea]+'[rlookup(uni, ScenarioDemographics/FemaleMortality/datapoints/uni)]'";
+			attribute<float32>		FemaleFertility: 	expr = "= 'ScenarioDemographics/FemaleFertility/datapoints/aggr_values/'+RunAreas/zoneid[inArea]+'[rlookup(uni, ScenarioDemographics/FemaleFertility/datapoints/uni)]'";
+			unit<uint32> Domain: expr = "Data";
+			unit<uint32> Data: expr = "ProjectedYears_x_ageclasses" {attribute<float32> Year: expr = "float32(ProjectedYears_x_ageclasses/year)"; attribute<string> Label: expr = "AgeClasses/LabelText[nr_1] + ' @ ' + string(findyear)";}
+		}
+		
+	}
+	
+	Template doDemographics {
+		
+		parameter<timesteps> inStep;	
+		unit<uint32> PopModelZones;
+		unit<uint32> p_x_a;
+		unit<wpoint> domain: expr = "domain_grid";
+		unit<uint32> pc: expr = "AgeClasses" {attribute<string> Name: expr = "LabelText";}
+		container FemalePerc: expr = "PrevState/PopulationBreakdown/FemalePerc";
+		attribute<PopModelZones> RegionRel (domain): expr = "PreparationRef/ZonesRaster";
+		
+		parameter<uint32> Year: expr = "timesteps/Year[inStep]";
+		parameter<float32> ComingPeriodLength: expr = "inStep > 0 ? float32(Year - timesteps/Year[inStep - 1]) : 4f";
+		
+		unit<uint32> nat_change_params: expr = "subset(p_x_a/year = Year)" {
+			attribute<AgeClasses> pc: 			expr = "p_x_a/nr_1[Nr_OrgEntity]";
+			attribute<float32> MaleMortality: 	expr = "p_x_a/MaleMortality[Nr_OrgEntity]";
+			attribute<float32> FemaleMortality: expr = "p_x_a/FemaleMortality[Nr_OrgEntity]";
+			attribute<float32> FemaleFertility: expr = "p_x_a/FemaleFertility[Nr_OrgEntity]";
+		}
+		
+		
+		container NaturalChanges {
+			//container AnnualMortality: expr = "for_each_nedv(pc/Name,'mean(Parameters/DemandSets/Global/Mortality/'+pc/Name+'/Data/Pop[Claims/ClaimTableSelections/Mortality/'+pc/Name+'/sel/Nr_OrgEntity], "
+			//	 "DemandSet/Global/Mortality/'+pc/Name+'/Data/ZoneRel[Claims/ClaimTableSelections/Mortality/'+pc/Name+'/sel/Nr_OrgEntity])[MortalityZones/Nr_OrgEntity]',"
+			//	"MortalityZones, float32)";
+			
+			attribute<float32> AnnualMaleMortality 		(pc):  expr = "rjoin(id(pc), nat_change_params/pc, nat_change_params/MaleMortality)";
+			attribute<float32> AnnualFemaleMortality 	(pc):  expr = "rjoin(id(pc), nat_change_params/pc, nat_change_params/FemaleMortality)";
+			attribute<float32> AnnualFemaleFertility 	(pc):  expr = "rjoin(id(pc), nat_change_params/pc, nat_change_params/FemaleFertility)";
+			attribute<float32> MaleSurvivalRates 		(pc):  expr = "((1f - AnnualMaleMortality)^ComingPeriodLength)";
+			attribute<float32> FemaleSurvivalRates 		(pc):  expr = "((1f - AnnualFemaleMortality)^ComingPeriodLength)";
+			attribute<float32> FertilityRate			(pc):  expr = "AnnualFemaleFertility * ComingPeriodLength";
+			container FemaleSurvivors: 				expr = "for_each_nedv(pc/Name, 'PrevState/PopulationBreakdown/Females/'+pc/Name+' * const(FemaleSurvivalRates['+string(id(pc))+'],domain,float32)',domain, float32)";	
+			container MaleSurvivors: 				expr = "for_each_nedv(pc/Name, 'PrevState/PopulationBreakdown/Males/'+pc/Name+' * const(FemaleSurvivalRates['+string(id(pc))+'],domain,float32)',domain, float32)";	
+			container Births:						expr = "for_each_nedv(pc/Name, 'FemaleSurvivors/'+pc/Name+' * const(FertilityRate['+string(id(pc))+'],domain,float32)',domain,float32)" {
+				attribute<float32> total (domain): 		expr = "= 'add('+AsItemList(pc/Name)+')'";
+				attribute<float32> fem_perc (domain): 	expr = "= 'FemalePerc/'+pc/Name[0]";
+			}
+			container FemalesToNextPopulationClass: expr = "for_each_nedv(pc/Name, id(pc) < max(id(pc)) ? 'FemaleSurvivors/'+pc/Name+' * MakeDefined(ComingPeriodLength / float32('+string(pc/ClassDuration)+'), float32(0))' : 'const(0,domain,float32)', domain, float32)";
+			container MalesToNextPopulationClass: 	expr = "for_each_nedv(pc/Name, id(pc) < max(id(pc)) ? 'MaleSurvivors/'+pc/Name+' * MakeDefined(ComingPeriodLength / float32('+string(pc/ClassDuration)+'), float32(0))' : 'const(0,domain,float32)', domain, float32)";
+			container FemalesIntoPopulationClass:	expr = "for_each_nedv(pc/Name, id(pc) > (0) ? 'FemalesToNextPopulationClass/'+pc/Name[id(pc)-(1)] : 'Births/total * Births/fem_perc',domain, float32)";
+			container MalesIntoPopulationClass:		expr = "for_each_nedv(pc/Name, id(pc) > (0) ? 'MalesToNextPopulationClass/'+pc/Name[id(pc)-(1)] : 'Births/total * (1f - Births/fem_perc)',domain, float32)";
+			container FemalePopulationStock: 		expr = "for_each_nedv(pc/Name, 'FemaleSurvivors/'+pc/Name+' + FemalesIntoPopulationClass/'+pc/Name+' - FemalesToNextPopulationClass/'+pc/Name, domain, float32)";
+			container MalePopulationStock: 			expr = "for_each_nedv(pc/Name, 'MaleSurvivors/'+pc/Name+' + MalesIntoPopulationClass/'+pc/Name+' - MalesToNextPopulationClass/'+pc/Name, domain, float32)";
+			container TotalPopulationStock:			expr = "for_each_nedv(pc/Name, 'FemalePopulationStock/'+pc/Name+' + MalePopulationStock/'+pc/Name, domain, float32)";
+			//container PopulationStockShares:		expr = "for_each_nedv(pc/Name, 'sum(TotalPopulationStock/'+pc/Name+', RegionRel) / sum(add('+AsItemList('TotalPopulationStock/'+pc/Name, pc/broadfrom)+'), RegionRel)',PopModelZones,float32)";
+			container PopulationStockShares:		expr = "for_each_nedv(pc/Name, 'sum(TotalPopulationStock/'+pc/Name+', RegionRel) / sum(add('+AsItemList('TotalPopulationStock/'+pc/Name, pc/broadfrom)[pc/broadfrom]+'), RegionRel)',PopModelZones,float32)";
+		}
+		container InternalMovements {
+			container RemainingFemaleStock: expr = "for_each_nedv(pc/Name, "
+				"'NaturalChanges/FemalePopulationStock/'+pc/Name+' * (float32(1) - MakeDefined(float32('+string(pc/IntraRegionalMobility)+')^ComingPeriodLength, 0f))', domain, float32)" {
+				attribute<float32> internallyremaining (domain): expr = "= 'add('+AsItemList(pc/Name)+ ')'";
+				attribute<float32> perc_remaining		(domain): expr = "internallyremaining / PrevState/Qi";
+				attribute<float32> summed (domain): expr = "= 'add('+AsItemList(pc/Name)+ ')'";
+			}
+			container RemainingMaleStock: expr = "for_each_nedv(pc/Name, "
+				"'NaturalChanges/MalePopulationStock/'+pc/Name+' * (float32(1) - MakeDefined(float32('+string(pc/IntraRegionalMobility)+')^ComingPeriodLength, 0f))', domain, float32)" {
+				attribute<float32> internallyremaining (domain): expr = "= 'add('+AsItemList(pc/Name)+ ')'";
+				attribute<float32> perc_remaining		(domain): expr = "internallyremaining / PrevState/Qi";
+				attribute<float32> summed (domain): expr = "= 'add('+AsItemList(pc/Name)+ ')'";
+			}
+			container RemainingStock: expr = "for_each_nedv(pc/Name, 'RemainingFemaleStock/'+pc/Name+' + RemainingMaleStock/'+pc/Name, domain, float32)" {	attribute<float32> summed (domain): expr = "= 'add('+AsItemList(pc/Name)+ ')'";}
+			container EmptySupply: expr = "for_each_nedv(pc/Name, 'PrevState/PopulationBreakdown/'+pc/Name+' - (RemainingFemaleStock/'+pc/Name+' + RemainingMaleStock/'+pc/Name+')', domain, float32)" {
+				attribute<float32> summed (domain): expr = "= 'add('+AsItemList(pc/Name)+ ')'";
+			}
+		}
+		container ProjectedTotals {
+			//container BroadProjected: 		expr = "for_each_nedv(EurostatClaims/LabelText, "
+			//	"'LUISA_sequence/Preparation/ScenarioDemographics/AgeGroups/'+EurostatClaims/LabelText+'/InColumns/y'+string(timesteps/Year[inStep])+'[PopModelZones/Nr_OrgEntity]', "
+			//	"PopModelZones, float32)" {attribute<float32> summed (PopModelZones): expr = "= 'add('+AsItemList(EurostatClaims/LabelText)+')'";}
+			//container underlying_class_distributions: expr = "for_each_nedv(pc/Name, 'sum(NaturalChanges/TotalPopulationStock/'+pc/Name+')')"; // sum size in broad age class.
+			//container Population: 		expr = "for_each_nedv(pc/Name, 'BroadProjected/'+EurostatClaims/LabelText[pc/eurostatfrom]+' * NaturalChanges/PopulationStockShares/'+pc/Name, PopModelZones, float32)" {
+			//	attribute<float32> summed (PopModelZones): expr = "= 'add('+AsItemList(pc/Name)+ ')'";
+			//}
+			unit<uint32> Projections: expr = "subset(PreparationRef/AreaProjections/ts_id = inStep)" {
+				attribute<float32> 			Val: 	expr = "PreparationRef/AreaProjections/Val[Nr_OrgEntity]";
+				attribute<AgeClasses> 		ac_id:	expr = "PreparationRef/AreaProjections/ac_id[Nr_OrgEntity]";
+				attribute<PopModelZones>	Z_id:   expr = "PreparationRef/AreaProjections/Z_id[Nr_OrgEntity]";
+			}
+			
+			container Population: expr = "for_each_nedv(AgeClasses/LabelText, 'sum(Projections/Val * float32(Projections/ac_id = '+string(id(AgeClasses))+'), Projections/Z_id)', PopModelZones, float32)" {
+				attribute<float32> summed (PopModelZones): expr = "= 'add('+AsItemList(pc/Name)+ ')'";
+			}
+		}
+		// below: stub to start integrating spillovers here rather than in claims section
+		// proto_Qj and Qj are elements from previous Population function
+		container Spillovers {
+			attribute<float32> 	proto_Qj	(PopModelZones): Expr = "ProjectedTotals/Population/summed";
+			attribute<float32>  Qj			(PopModelZones): Expr = "= Rules/Qj_definition";
+		}
+		
+		container RemainingStock: 	expr = "for_each_nedv(pc/Name, 'sum(InternalMovements/RemainingStock/'+pc/Name+', RegionRel)', PopModelZones, float32)" {
+			attribute<float32> summed (PopModelZones): expr = "= 'add('+AsItemList(pc/Name)+')'";
+		}
+		container Kj:				expr = "for_each_nedv(pc/Name, 'ProjectedTotals/Population/'+pc/Name+' - RemainingStock/'+pc/Name, PopModelZones, float32)" {
+			attribute<float32> summed (PopModelZones): expr = "= 'add('+AsItemList(pc/Name)+')'";
+		}
+		
+		attribute<bool>	   popdecline 	(PopModelZones):   Expr = "Kj/summed < float32(0)";
+	}
+	Template doPopulationBreakdown
+	{
+		unit<wpoint>			domain;
+		unit<uint32> 	   		Region;
+		attribute<Region> 		RegionRel 			(domain);
+		
+		container Popj: expr = "Demographics/ProjectedTotals/Population";
+		container pQi:  expr = "Demographics/InternalMovements/RemainingStock";
+		
+		attribute<float32> Qi (domain): expr = "float32(ModelPopulationDistribution/Qi)";
+		
+		container init {
+			attribute<float32> dif	   (domain): expr = "Qi - pQi/summed";
+			attribute<float32> Residue (domain): expr = "max_elem(float32(Qi) - (pQi/summed), float32(0))";
+			
+			//container ToFill: expr = "for_each_nedv(AgeClasses/LabelText, 'Residue > float32(0) ? '+"
+			//	"'(Residue * )'
+			
+			//container ToFill: expr = "for_each_nedv(AgeClasses/LabelText, 'Residue > float32(0) ? '+"
+			//	"'(Residue * Abs(Kj/'+ AgeClasses/LabelText +' / Kj/summed)[RegionRel]) '+"
+			//	"'+ max_elem(Demographics/InternalMovements/EmptySupply/'+ AgeClasses/LabelText +', float32(0)) : float32(0)',"
+			//	"domain, float32)";
+			
+			container Kj: 	expr = "for_each_nedv(AgeClasses/LabelText, 'Popj/'+ AgeClasses/LabelText +' - sum(pQi/'+ AgeClasses/LabelText +', RegionRel)', Region, float32)" {
+				attribute<float32> summed (Region): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";
+			}
+			container Attraction: 				expr = "for_each_nedv(AgeClasses/LabelText, "
+				"'(dif < 0f || Kj/'+AgeClasses/LabelText + '[RegionRel] < 0f ? Demographics/InternalMovements/RemainingStock/'+AgeClasses/LabelText+' * (1f / PreparationRef/degurba_modifiers/'+AgeClasses/LabelText+') : '+"
+				"'Residue * PrevState/PopulationBreakdown/Perc/'+AgeClasses/LabelText+' * PreparationRef/degurba_modifiers/'+AgeClasses/LabelText+')', domain, float32)";
+	
+	
+			container DownScale: 				expr = "for_each_nedv(AgeClasses/LabelText, 'ScaleSum(Attraction/'+ AgeClasses/LabelText +', Regionrel, Kj/'+AgeClasses/LabelText+')', domain, float32)" {
+				attribute<float32> Dependents_perc (domain): expr = "(Under15 + Over65) / summed";
+				attribute<float32> summed (domain): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";
+			}
+			container ScaledToQj:				expr = "for_each_nedv(AgeClasses/LabelText, "
+					"'pQi/'+ AgeClasses/LabelText +' + (max_elem(DownScale/'+ AgeClasses/LabelText +', float32(0)))', domain, float32)" {
+				attribute<float32> summed (domain): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";
+			}
+		}
+	//		"'pQi/'+ MetaData/PopulationCharacteristics/name +' + DownScale/'+ MetaData/PopulationCharacteristics/name, domain, float32)";
+		
+		Container LoopProcess: expr = "Loop(PopulationBreakdown_iterative_fitting_procedure, uint16(10))";
+		Container DefPopulationBreakdown: expr = "for_each_nedv(AgeClasses/LabelText, 'LoopProcess/LastIter/NextValue/ScaledToQj/'+AgeClasses/LabelText, domain, float32)"	{
+			container Perc:			expr = "for_each_nedv(AgeClasses/LabelText, 'MakeDefined(DefPopulationBreakdown/'+AgeClasses/LabelText + ' / summed, 1f)', domain, float32)";
+			container FemalePerc: 	expr = "for_each_nedv(AgeClasses/LabelText, '(sum(Demographics/NaturalChanges/FemalePopulationStock/'+AgeClasses/LabelText+', Regionrel) / sum(Demographics/NaturalChanges/TotalPopulationStock/'+AgeClasses/LabelText+', Regionrel))[RegionRel]', domain, float32)";
+			container Females: 		expr = "for_each_nedv(AgeClasses/LabelText, 'DefPopulationBreakdown/'+AgeClasses/LabelText+' * FemalePerc/'+AgeClasses/LabelText, domain, float32)" {attribute<float32> summed (domain): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";}
+			container Males: 		expr = "for_each_nedv(AgeClasses/LabelText, 'DefPopulationBreakdown/'+AgeClasses/LabelText+'- Females/'+ AgeClasses/LabelText, domain, float32)";
+			attribute<float32> summed (domain): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";
+			
+			
+			
+		}
+		
+		container Dispersion_stats {
+			attribute<float32> HERFi			(domain): 	expr = "= 'add('+ AsItemList('(DefPopulationBreakdown/'+AgeClasses/LabelText+' / DefPopulationBreakdown/summed)^float32(2)')+')'";
+			attribute<float32> HERFj			(Region): 	expr = "sum(HERFi * DefPopulationBreakdown/summed, RegionRel) / sum(DefPopulationBreakdown/summed, RegionRel)";
+		}
+		
+		Template PopulationBreakdown_iterative_fitting_procedure {
+			parameter<uint16> NrIter;
+			container CurrValue {
+				container ScaledToQj: expr = "init/ScaledToQj";
+			}
+			container NextValue {
+				attribute<float32> ToFill 	(domain): expr = "float32(Qi) - (pQi/summed + CurrValue/ScaledToQj/summed)";
+				attribute<float32> di	  	(domain): expr = "MakeDefined(float32(Qi) / CurrValue/ScaledToQj/summed, float32(1))";
+				
+				container scaledToQi:		 		expr = "for_each_nedv(AgeClasses/LabelText, 'di * CurrValue/ScaledToQj/'+AgeClasses/LabelText, domain, float32)";
+				container SumScaledToQi:			expr = "for_each_nedv(AgeClasses/LabelText, 'sum(scaledToQi/'+AgeClasses/LabelText+', RegionRel)', Region, float32)";
+				//container Kj: expr = "for_each_nedv(MetaData/PopulationCharacteristics/name, 'Popj/'+ MetaData/PopulationCharacteristics/name +' - sum(CurrValue/ScaledToKj/'+ MetaData/PopulationCharacteristics/name +', RegionRel)', Region, float32)";
+				//container scaledToModelledQi: 		expr = "for_each_nedv(MetaData/PopulationCharacteristics/name, 'CurrValue/ScaledToKj/'+ MetaData/PopulationCharacteristics/name +' + move/'+MetaData/PopulationCharacteristics/name, domain, float32)";
+				container dj:						expr = "for_each_nedv(AgeClasses/LabelText, 'Popj/'+ AgeClasses/LabelText +' / SumScaledToQi/'+ AgeClasses/LabelText, Region, float32)";
+				//container Kj: expr = "for_each_nedv(MetaData/PopulationCharacteristics/name, 'Popj/'+ MetaData/PopulationCharacteristics/name +' - Sum(scaledToModelledQi/'+MetaData/PopulationCharacteristics/name+', RegionRel)', Region, float32)";
+				//container Attraction: 				expr = "for_each_nedv(MetaData/PopulationCharacteristics/name, 'Kj/'+MetaData/PopulationCharacteristics/name + '[RegionRel] < float32(0) ? Abs(min_elem(ToFill, float32(0))) : max_elem(ToFill, float32(0))', domain, float32)"; // if pop needs to go down, only excessive pop spots; if pop needs to go up, only pop spots with gaps
+				//container DownScale: 				expr = "for_each_nedv(MetaData/PopulationCharacteristics/name, 'ScaleSum(Attraction/'+MetaData/PopulationCharacteristics/name+', Regionrel, Kj/'+MetaData/PopulationCharacteristics/name+')', domain, float32)";
+				//container DownScale: 				expr = "for_each_nedv(MetaData/PopulationCharacteristics/name, 'ScaleSum(Attraction/'+ MetaData/PopulationCharacteristics/name +', Regionrel, Kj/'+MetaData/PopulationCharacteristics/name+')', domain, float32)";
+				container ScaledToQj:				expr = "for_each_nedv(AgeClasses/LabelText, "
+					"'dj/'+AgeClasses/LabelText+'[RegionRel] * scaledToQi/'+ AgeClasses/LabelText, domain, float32)" {
+					attribute<float32> summed (domain): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";
+				}
+				container RegionalErrors: 			expr = "for_each_nedv(AgeClasses/LabelText, 'sum(Abs(Popj/'+AgeClasses/LabelText+' - sum(ScaledToQj/'+AgeClasses/LabelText+', RegionRel)))', void, float32)";
+				parameter<float32> LocalErrors: 	expr = "sum(Abs((ScaledToQj/summed) - float32(Qi)))";
+			}
+		}
+	}
+}

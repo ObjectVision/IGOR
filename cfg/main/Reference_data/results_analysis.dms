@@ -1,0 +1,68 @@
+Container Results_Analysis {
+	
+	unit<dpoint> CoordSys: expr = "Geography/LambertEA";
+	
+	//validation, check with LAU2 estat
+	container Validation_estat {
+	
+		parameter<bool> StoreAll: expr = "True", ExplicitSuppliers = "vali_estat_1km;estat_ref;";
+	
+		unit<uint32> Zones: expr = "estat_counts/inFile";
+		
+		attribute<Zones> zoneId (Geography/LambertEA/m1000): expr = "poly2grid(Zones/Geometry,  Geography/LambertEA/m1000)";
+		container estat_counts: expr = "Templates/loadDataFile_polyshp('%LocalDataProjDir%/estat/boundaryzones', Geography/LambertEA/m1000)";
+		
+		container ref1kmData: expr = "for_each_nedv(AgeClasses/LabelText, 'float32(inData/'+AgeClasses/LabelText+'/inFile/ReadData)', Geography/LambertEA/m1000, float32)";
+		unit<wpoint> GeoSTAT: StorageName = "F:/SourceData/PopAge_disagg/data/GeoSTAT/GEOSTAT_POP2011_V201_POP.tif", StorageType = "gdal.grid", StorageReadOnly = "True", DialogData = "LambertEA" {
+			attribute<int32> GridData;
+			attribute<int32> ReadData (Geography/LambertEA/m1000);
+		}
+		container vali_estat_1km: expr = "for_each_nedva('m_'+AgeClasses/LabelText, '(sum(Max_elem(MakeDefined(ref1kmData/'+AgeClasses/LabelText+', 0f), 0f), zoneId))', Zones, float32, '%LocalDataProjDir%/EU_results/vali.dbf')" {
+		//container vali_estat_100m: expr = "for_each_nedva('m_'+AgeClasses/LabelText, 'float32(sum(in100mData/'+AgeClasses/LabelText+'/inFile/ReadData, in100mData/estat_counts/RasterIds))', in100mData/estat_counts/inFile, float32, '%LocalDataProjDir%/EU_results/vali.dbf')" {
+			attribute<Geography/LambertEA> Geometry (Zones, polygon): 	expr = "Zones/Geometry", StorageName = "%LocalDataProjDir%/EU_results/vali.shp";
+			attribute<string> 			   Nuts3	(Zones):			expr = "Nuts3_boundaries/ZoneId[point_in_polygon(centroid_or_mid(Geometry), Nuts3_boundaries/Geometry)]", StorageName = "%LocalDataProjDir%/EU_results/vali.dbf";
+			attribute<float32> 			   m_tot	(Zones): 			expr = "= 'add('+AsItemList('m_'+AgeClasses/LabelText)+')'", StorageName = "%LocalDataProjDir%/EU_results/vali.dbf";
+			attribute<int32>			   g_tot	(Zones): 			expr = "sum(GeoSTAT/ReadData, ZoneId)", StorageName = "%LocalDataProjDir%/EU_results/vali.dbf";
+		}
+		container estat_ref: expr = "for_each_nedva('o_'+AgeClasses/LabelText, 'float32(Zones/'+AgeClasses/LabelText+')', Zones, float32, '%LocalDataProjDir%/EU_results/vali.dbf')" {
+			attribute<float32> 			   o_tot	(Zones): 			expr = "= 'add('+AsItemList('o_'+AgeClasses/LabelText)+')'", StorageName = "%LocalDataProjDir%/EU_results/vali.dbf";
+		}
+	}
+		//loadresults
+	container inData: expr = "for_each_ne(AgeClasses/LabelText, 'Templates/loadDataFile_float32tiff_sedac('+quote('%LocalDataProjDir%/EU_results/1km/'+AgeClasses/LabelText+'_fitted')+', Geography/LambertEA/m1000)')" {
+		container degurb: expr = "Templates/loadDataFile_uint8tiff('%SourceDatadir%/Popage_disagg/data/degurb/DEGURB_L2', Geography/LambertEA/m1000)";
+		container countries: expr = "Templates/loadDataFile_polyshp('%SourceDataDir%/EUCS_100m/zones/Nuts/v10/Nuts0', Geography/LambertEA/m1000)" {
+			attribute<Results_Analysis/Countries> c_id (inFile): expr = "rlookup(inFile/ICC, Results_Analysis/Countries/Values)";
+		}
+	}
+
+	attribute<UrbanizationDegrees> 	ud_id 		(Geography/LambertEA/m1000): expr = "rlookup(inData/degurb/inFile/ReadData, UrbanizationDegrees/Values_replaced)";
+	attribute<Countries>			country_id  (Geography/LambertEA/m1000): expr = "inData/countries/c_id[inData/countries/RasterIds]";
+	attribute<Countries_x_degurba>	cxd_rel		(Geography/LambertEA/m1000): expr = "rlookup(point(country_id, ud_id, upoint), Countries_x_degurba/uni_id)";
+	
+	unit<uint32> UrbanizationDegrees: 	expr = "unique(inData/degurb/inFile/ReadData)" {
+		attribute<uint8> Values_replaced: expr = "Values > uint8(100) ? uint8(0 / 0) : Values";
+	}
+	unit<uint32> Countries:				expr = "unique(inData/countries/inFile/ICC)";
+	unit<uint32> Countries_x_degurba:	expr = "combine(Countries, UrbanizationDegrees)" {
+		attribute<upoint>		uni_id:		expr = "point(nr_1, nr_2, upoint)";
+		attribute<string> 		Country: 	expr = "Countries/Values[nr_1]";
+		attribute<uint8>		DegUrba: 	expr = "UrbanizationDegrees/Values[nr_2]";
+		attribute<bool>			MS:			expr = "IsDefined(rlookup(Country, substr(Sedac_rasters/selN3/ZoneId, 0, 2)))";
+		attribute<string>   	Combined:	expr = "Country + '_x_' + string(DegUrba)";
+		attribute<string> 		LabelText:	expr = "Combined", DialogType = "LabelText";
+		attribute<float32>  	meaned: 	expr = "= 'add('+AsItemList(string(AgeClasses/avage)+'f * summed/'+AgeClasses/LabelText)+') / summed/total'";
+		attribute<AgeClasses>	medianclass:expr = "= 'min_elem('+AsItemList('find_median/'+AgeClasses/LabelText)+')'";
+		attribute<float32>		estmedian: 	expr = "AgeClasses/avage[medianclass]";
+		
+		container summed: 	expr = "for_each_nedv(AgeClasses/LabelText, 'sum(inData/'+AgeClasses/LabelText+'/inFile/ReadData, cxd_rel)', Countries_x_degurba, float32)" {
+			attribute<float32> total (Countries_x_degurba): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";
+		}
+		container summed_cumu: expr = "for_each_nedv(AgeClasses/LabelText, id(AgeClasses) = 0 ? 'summed/'+AgeClasses/LabelText + ' / summed/total': AgeClasses/LabelText[id(AgeClasses)-1] + '+ (summed/'+AgeClasses/LabelText + ' / summed/total)', Countries_x_degurba, float32)";
+		container find_median: expr = "for_each_nedv(AgeClasses/LabelText, 'summed_cumu/'+AgeClasses/LabelText+' < 0.5f ? 9999 : '+string(id(AgeClasses)), Countries_x_degurba, uint32)";
+		
+		
+		
+	}
+	
+}

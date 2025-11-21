@@ -1,0 +1,144 @@
+container muni_estat_data {
+	
+	container muni_data: expr = "for_each_ne(files/name, 'Templates/loadDataFile_txt('+quote('F:/SourceData/PopAge_disagg/data/ESTAT_muni/'+files/name+'/'+files/fname+'.csv')+', Muni_boundaries_v8,'+quote(';')+')')";
+	
+	unit<uint32> alldata: expr = "= 'union_unit('+AsItemList('muni_data/'+files/name+'/Data')+')'" {
+		attribute<string> Geo: expr = "= 'union_data(.,'+AsItemList('muni_data/'+files/name+'/Data/Values/Geo')+')'";
+		attribute<string> Sex: expr = "= 'union_data(.,'+AsItemList('muni_data/'+files/name+'/Data/Values/Sex')+')'";
+		attribute<string> Age: expr = "= 'union_data(.,'+AsItemList('muni_data/'+files/name+'/Data/Values/Age')+')'";
+		attribute<string> Val: expr = "= 'union_data(.,'+AsItemList('muni_data/'+files/name+'/Data/Values/Value')+')'";
+		attribute<Gender> GenderType: expr = "rlookup(Sex, Gender/LabelText)";
+		attribute<uint32> Pop: expr = "uint32(Val)";
+		attribute<CensusLAU/inFile>	cl_id: expr = "rlookup(Geo, CensusLAU/ZoneId)";
+		attribute<Nuts3>			n3_id: expr = "rlookup(Geo, Nuts3/estat_zoneid)";
+		attribute<Ageclasses> ac_id:	expr = "rlookup(Age, Ageclasses/estat_notf)";
+	
+	}
+	
+	container CensusLAU: expr = "Templates/loadDataFile_polyshp('F:/SourceData/PopAge_disagg/data/ESTAT_muni/geodata/LAU2_Census_ETRS89', Geography/Lambert100mGrid)" {
+		attribute<string> ZoneId (inFile): expr = "inFile/CENSUS_ID";
+		attribute<uint32> count (inFile): expr = "pcount(alldata/cl_id)";
+		attribute<bool>	  None (inFile):	expr = "count = 0";
+		attribute<bool>	  N3None 	(inFile): expr = "Nuts3/cnone[n3id] || Nuts3/pref_n3[n3id]";
+		attribute<Nuts3_boundaries> n3id (inFile): expr = "zoneid_rel";
+		attribute<Nuts3_boundaries> simple_n3id (inFile): expr = "point_in_polygon(centroid, Nuts3_boundaries/simpleGeometry)";
+		attribute<bool> nodetailedspatrel (inFile): expr = "IsNull(point_in_polygon(centroid, Nuts3_boundaries/Geometry))";
+		attribute<bool> nospatrel (inFile): expr = "nodetailedspatrel && IsNull(simple_n3id)";
+		attribute<Nuts3> zoneid_rel (inFile): expr = "rlookup(substr(ZoneId, 0, 5), Nuts3/ZoneId)";
+		attribute<Geography/LambertEA> centroid (inFile): expr = "centroid_or_mid(inFile/Geometry)";
+		
+		container AC_Pop: expr = "for_each_nedv(AgeClasses/LabelText, 'sum(alldata/Pop * uint32(alldata/ac_id = '+string(id(Ageclasses))+' && alldata/GenderType = 2), alldata/cl_id) / sum(uint32(alldata/ac_id = '+string(id(Ageclasses))+' && alldata/GenderType = 2), alldata/cl_id)', inFile, uint32)" {
+			attribute<uint32> total (inFile): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";
+		}
+		unit<uint32> selected: expr = "subset(!N3None)", DialogData = "Geometry", DialogType = "map" {
+			attribute<string> 				ZoneId:			expr = "CensusLAU/ZoneId[Nr_OrgEntity]";
+			attribute<Geography/LambertEA> Geometry (poly): expr = "inFile/Geometry[Nr_OrgEntity]";
+		}
+	}
+	unit<uint32> Nuts3: expr = "Nuts3_boundaries" {
+		attribute<uint32> laucount: expr = "pcount(CensusLAU/n3id)";
+		attribute<bool>	cnone: expr = "any(CensusLAU/None, CensusLAU/n3id)";
+		attribute<bool>	sel: expr = "(cnone || laucount = 0) && !skip";
+		
+		attribute<bool> redo_200804: expr = "any(CensusLAU/nodetailedspatrel, CensusLAU/n3id)";
+		
+		attribute<float32> PercYFemales: expr = "MakeDefined(sum(float32(alldata/Pop * uint32(alldata/GenderType = 0 && alldata/ac_id < 6)), alldata/n3_id) / sum(float32(alldata/Pop * uint32(alldata/GenderType = 2 && alldata/ac_id < 6)), alldata/n3_id), float32(0.5))"; // under 30
+		//attribute<float32> PercFemales: expr = "MakeDefined(sum(float32(alldata/Pop * uint32(alldata/GenderType = 0 && IsDefined(alldata/ac_id))), alldata/n3_id) / float32(p_AC_Pop/total), float32(0.5))";
+
+		container perc_Females: expr = "for_each_nedva(AgeClasses/LabelText, 'MakeDefined(sum(float32(alldata/Pop * uint32(alldata/GenderType = 0 && alldata/ac_id = '+string(id(Ageclasses))+')), alldata/n3_id) / sum(float32(alldata/Pop * uint32(alldata/GenderType = 2 && alldata/ac_id = '+string(id(Ageclasses))+')), alldata/n3_id), float32(0.5))', Nuts3, float32, '%LocalDataProjDir%/EU_results/fem_perc.dbf')" {
+			attribute<string> NutsID (Nuts3): expr = "ZoneId", StorageName = "%LocalDataProjDir%/EU_results/fem_perc.dbf";
+		}
+		
+		container p_AC_Pop: expr = "for_each_nedv(AgeClasses/LabelText, 'sum(alldata/Pop * uint32(alldata/ac_id = '+string(id(Ageclasses))+' && alldata/GenderType = 2), alldata/n3_id)', Nuts3, uint32)" {
+			attribute<uint32> total (Nuts3): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";
+		}
+		container AC_Pop: expr = "for_each_nedv(AgeClasses/LabelText, 'cnone ? Nuts3_boundaries/ac_Nuts3PopData/'+ AgeClasses/LabelText +' : p_AC_Pop/'+AgeClasses/LabelText, Nuts3, uint32)" {
+			attribute<uint32> total (Nuts3): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";
+			attribute<bool>	  None 	(Nuts3): expr = "total = 0";
+		}
+		
+		unit<uint32> selected: expr = "subset(sel || pref_n3)", DialogData = "Geometry", DialogType = "map" {
+			attribute<string> 				ZoneId:			expr = "Nuts3/ZoneId[Nr_OrgEntity]";
+			attribute<Geography/LambertEA> Geometry (poly): expr = "Nuts3/Geometry[Nr_OrgEntity]";
+		}
+		
+	}
+	
+	unit<uint32> BoundaryZones: expr = "union_unit(CensusLAU/selected, Nuts3/selected)", DialogData = "Geometry", DialogType = "map", KeepData = "True", FreeData = "False"  {
+		attribute<Geography/LambertEA> Geometry (poly): expr = "union_data(., CensusLAU/selected/Geometry, Nuts3/selected/Geometry)";
+		attribute<Nuts3>			   N3id:			expr = "union_data(., CensusLAU/n3id[CensusLAU/selected/Nr_OrgEntity], Nuts3/selected/Nr_OrgEntity)";
+		attribute<Sedac_rasters/selN3> sN3id:			expr = "invert(Sedac_rasters/selN3/nr_OrgEntity)[N3id]";
+		
+		container PopData: expr = "for_each_nedv(AgeClasses/LabelText, 'union_data(BoundaryZones, CensusLAU/AC_Pop/'+AgeClasses/LabelText+'[CensusLAU/selected/Nr_OrgEntity], Nuts3/AC_Pop/'+AgeClasses/LabelText+'[Nuts3/selected/Nr_OrgEntity])', BoundaryZones, uint32)"
+			, KeepData = "True", FreeData = "False" {
+			attribute<uint32> total (BoundaryZones): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";
+			attribute<bool>	  None 	(BoundaryZones): expr = "total = 0";
+		}
+		
+		parameter<bool> StoreBZ: expr = "True", ExplicitSuppliers = "StorePopData;";
+		unit<uint32> StoreBoundaryZones: expr = "BoundaryZones", StorageName = "%LocalDataProjDir%/estat/boundaryzones.dbf" {
+			attribute<Geography/LambertEA> Geometry (poly): expr = "BoundaryZones/Geometry", StorageName = "%LocalDataProjDir%/estat/boundaryzones.shp";
+		}
+		container StorePopData: expr = "for_each_nedva(AgeClasses/LabelText, 'PopData/'+AgeClasses/LabelText, StoreBoundaryZones, uint32, '%LocalDataProjDir%/estat/boundaryzones.dbf')";
+	}
+	
+	
+	unit<uint32> files: NrOfRows = 52 {
+		
+		attribute<string> fname: expr = "substr(name, strpos(name, '_')+1)";
+		
+		attribute<string> name: [
+			'AT_csvoutput_HC56_2020_03_12_16_09'
+			,'BE_csvoutput_HC56_2020_03_12_10_57'
+			,'BG1_csvoutput_HC56_2020_03_16_09_24'
+			,'BG2_csvoutput_HC56_2020_03_16_09_33'
+			,'BG3_csvoutput_HC56_2020_03_16_09_38'
+			,'BG4_csvoutput_HC56_2020_03_16_09_44'
+			,'BG5_csvoutput_HC56_2020_03_16_09_47'
+			,'BG6_csvoutput_HC56_2020_03_16_09_52'
+			,'BG7_csvoutput_HC56_2020_03_16_09_55'
+			,'CH_csvoutput_HC56_2020_03_12_16_51'
+			,'CY_csvoutput_HC56_2020_03_12_15_46'
+			,'CZ_csvoutput_HC56_2020_03_16_10_08'
+			,'DE1_csvoutput_HC56_2020_03_16_10_14'
+			,'DE2_csvoutput_HC56_2020_03_16_10_20'
+			,'DK_csvoutput_HC56_2020_03_12_11_18'
+			,'EE_csvoutput_HC56_2020_03_12_11_40'
+			,'EL_csvoutput_HC56_2020_03_12_11_45'
+			,'ES1_csvoutput_HC56_2020_03_16_11_09'
+			,'ES2_csvoutput_HC56_2020_03_16_11_14'
+			,'ES3_csvoutput_HC56_2020_03_16_11_19'
+			,'FI_csvoutput_HC56_2020_03_12_16_41'
+			,'FR10_csvoutput_HC56_2020_03_12_17_39'
+			,'FR1_csvoutput_HC56_2020_03_12_17_02'
+			,'FR2_csvoutput_HC56_2020_03_12_17_04'
+			,'FR3_csvoutput_HC56_2020_03_12_17_12'
+			,'FR4_csvoutput_HC56_2020_03_12_17_15'
+			,'FR5_csvoutput_HC56_2020_03_12_17_16'
+			,'FR6_csvoutput_HC56_2020_03_12_17_20'
+			,'FR7_csvoutput_HC56_2020_03_12_17_21'
+			,'FR8_csvoutput_HC56_2020_03_12_17_32'
+			,'FR9_csvoutput_HC56_2020_03_12_17_35'
+			,'HR_csvoutput_HC56_2020_03_12_15_25'
+			,'HU1_csvoutput_HC56_2020_03_12_16_58'
+			,'HU2_csvoutput_HC56_2020_03_12_17_02'
+			,'IE_csvoutput_HC56_2020_03_12_11_42'
+			,'IS_csvoutput_HC56_2020_03_12_16_47'
+			,'IT_csvoutput_HC56_2020_03_12_15_40'
+			,'LI_csvoutput_HC56_2020_03_12_16_48'
+			,'LT_csvoutput_HC56_2020_03_12_15_50'
+			,'LU_csvoutput_HC56_2020_03_12_15_51'
+			,'LV_csvoutput_HC56_2020_03_12_15_47'
+			,'MT_csvoutput_HC56_2020_03_12_15_56'
+			,'NL_csvoutput_HC56_2020_03_12_16_02'
+			,'NO_csvoutput_HC56_2020_03_12_16_50'
+			,'PL_csvoutput_HC56_2020_03_12_16_13'
+			,'PT_csvoutput_HC56_2020_03_12_16_21'
+			,'RO_csvoutput_HC56_2020_03_12_16_26'
+			,'SE_csvoutput_HC56_2020_03_12_16_45'
+			,'SI_csvoutput_HC56_2020_03_12_16_29'
+			,'SK1_csvoutput_HC56_2020_03_16_11_32'
+			,'SK2_csvoutput_HC56_2020_03_16_11_41'
+			,'SK3_csvoutput_HC56_2020_03_16_11_48'];
+		}
+	}

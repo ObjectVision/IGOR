@@ -1,0 +1,174 @@
+Container Sedac_rasters {
+	
+	unit<dpoint> CoordSys:		expr = "range(Geography/Base, point(-90.0, -180.0), point(90.0, 180.0))", Descr = "WGS 1984",	Format = "EPSG:4326";
+	
+	unit<uint32> AllNuts3: expr = "NUTS3_boundaries";
+	
+	unit<uint32> selN3: expr = "subset(!AllNuts3/skip)", DialogData = "Geometry", DialogType = "map" {
+			attribute<LambertEA> Geometry (poly): 	expr = "AllNuts3/Geometry[Nr_OrgEntity]";
+			attribute<string> 	 ZoneId:			expr = "AllNuts3/ZoneId[Nr_OrgEntity]";
+			attribute<bool>		 bin_agedclasses:	expr = "AllNuts3/bin_agedclasses[Nr_OrgEntity]";
+			attribute<bool> 	 redo200804: 		expr = "muni_estat_data/Nuts3/redo_200804[Nr_OrgEntity]";
+			
+			container PopData: expr = "for_each_nedv(AgeClasses/LabelText, '/muni_estat_data/NUTS3/AC_Pop/'+ AgeClasses/LabelText+'[Nr_OrgEntity]', selN3, uint32)"
+				{attribute<uint32> total (selN3): expr = "= 'add('+ AsItemList(AgeClasses/LabelText) +')'";}
+			
+			attribute<float32>	 MAPE_enact:		expr = "= 'float32(union_data(., '+AsItemList('PerNuts3/'+ZoneId+'/MAPE_ReadOnly/Data/ENACT')+'))'";
+			attribute<float32>	 MAPE_y10t14:		expr = "= 'float32(union_data(., '+AsItemList('PerNuts3/'+ZoneId+'/MAPE_ReadOnly/Data/y10t14')+'))'";
+			attribute<float32>	 MAPE_y25t29:		expr = "= 'float32(union_data(., '+AsItemList('PerNuts3/'+ZoneId+'/MAPE_ReadOnly/Data/y25t29')+'))'";
+			attribute<float32>	 MAPE_y45t49:		expr = "= 'float32(union_data(., '+AsItemList('PerNuts3/'+ZoneId+'/MAPE_ReadOnly/Data/y45t49')+'))'";
+			attribute<float32>	 MAPE_60t64:		expr = "= 'float32(union_data(., '+AsItemList('PerNuts3/'+ZoneId+'/MAPE_ReadOnly/Data/y60t64')+'))'";
+			attribute<float32>	 MAPE_70t74:		expr = "= 'float32(union_data(., '+AsItemList('PerNuts3/'+ZoneId+'/MAPE_ReadOnly/Data/y70t74')+'))'";
+			attribute<float32>	 MAPE_over85:		expr = "= 'float32(union_data(., '+AsItemList('PerNuts3/'+ZoneId+'/MAPE_ReadOnly/Data/over85')+'))'";
+		}
+		
+	unit<uint32> BZ: expr = "muni_estat_data/BoundaryZones"{
+		container popdata: expr = "muni_estat_data/BoundaryZones/PopData";
+	}
+	
+	attribute<string> AgeFileNames (AgeClasses): expr = "id(AgeClasses) < max(id(AgeClasses)) ? "
+		"'gpw_v4_basic_demographic_characteristics_rev11_a0'+AgeClasses/padfrom+'_0'+AgeClasses/padto+'bt_2010_dens_30_sec' :"
+		"'gpw_v4_basic_demographic_characteristics_rev11_a085plusbt_2010_dens_30_sec'";
+	
+	container PerNuts3: expr = "for_each_ne(selN3/ZoneId, 'genPerN3('+string(id(selN3))+')')" {
+		container storeall_container {parameter<bool> storeall: expr = "True", ExplicitSuppliers = "= AsList(selN3/ZoneId+'/Store', ';')";}
+		container store_binaged {parameter<bool> storebinaged: expr = "True", ExplicitSuppliers = "= AsList(selN3/ZoneId+'/Store', ';')";}
+		container store_redo200804 {parameter<bool> redo: expr = "True", ExplicitSuppliers = "= AsList(selN3/redo200804 ? selN3/ZoneId+'/Store' : '', ';')";}
+	}
+	
+	
+	container Load_Rasters: expr = "for_each_ne(AgeFileNames, 'Templates/loadDataFile_float32tiff_sedac('+quote('%SourceDatadir%/Popage_disagg/data/sedac_rasters/'+AgeFileNames)+', Geography/Lambert100mGrid)')" {
+		parameter<bool> store_100m: expr = "True", ExplicitSuppliers = "= AsList(AgeFileNames+'/tg/def',';')";
+	}
+	
+	
+	Container DoMake1kmRasters {
+		unit<dpoint> CoordSys: expr = "LambertEA";
+		container Load100mRasters: 		expr = "for_each_ne(AgeClasses/LabelText, 'Templates/loadDataFile_float32tiff_sedac('+quote('%LocalDataProjDir%/EU_results/'+AgeClasses/LabelText+'_fitted')+', Geography/Lambert100mGrid)')";
+		container Convertto1kmRasters:	expr = "for_each_nedva(AgeClasses/LabelText, 'sum(Load100mRasters/'+AgeClasses/LabelText+'/inFile/ReadData, Geography/Lambert100mGrid/m1000_rel)', Geography/LambertEA/m1000, float32, '%LocalDataProjDir%/EU_results/1km/'+AgeClasses/LabelText+'_fitted.tif')" {
+			attribute<float32> Total (Geography/LambertEA/m1000): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'", StorageName = "%LocalDataProjDir%/EU_results/1km/total_fitted.tif";}
+		container BroadAgeClassPercentages: expr = "for_each_nedva(BroadClasses/LabelText, 'add('+AsItemList('Convertto1kmRasters/'+AgeClasses/LabelText, AgeClasses/broadfrom)+') / Convertto1kmRasters/Total', Geography/LambertEA/m1000, float32, '%LocalDataProjDir%/EU_results/1km/perc_'+BroadClasses/LabelText+'_fitted.tif')";
+	}
+	attribute<National_boundaries> countryid (Geography/Lambert100mGrid): expr = "poly2grid(National_boundaries/Geometry, Geography/Lambert100mGrid)";
+	Container CheckPerCountry: expr = "for_each_nedv(AgeClasses/LabelText, 'sum(Sedac_rasters/DoMake1kmRasters/Load100mRasters/'+AgeClasses/LabelText+'/inFile/ReadData, countryid)', National_boundaries, float32)";
+	
+	container Mozaiks: expr = "for_each_ne(AgeClasses/LabelText, 'doMozaikResults('+string(id(AgeClasses))+')')" {
+		
+		parameter<bool> StoreAll: expr = "True", ExplicitSuppliers = "= AsList(AgeClasses/LabelText + '/merged', ';')";
+		
+		
+		attribute<uint16> n3grid (Geography/Lambert100mGrid): expr = "uint16(poly2grid(selN3/Geometry, Geography/Lambert100mGrid))";
+		
+	}
+	
+	Template doMozaikResults {
+		parameter<AgeClasses> inAgeClass;
+		
+		attribute<float32> merged (Geography/Lambert100mGrid): 
+			expr = "= 'raster_merge(n3grid, float32, '+AsItemList('PerNuts3/'+selN3/ZoneId+'/Grids_ReadOnly/'+AgeClasses/LabelText[inAgeClass]+'/inFile/GridData')+')'", 
+			StorageName = "= '%LocalDataProjDir%/EU_results/'+AgeClasses/LabelText[inAgeClass]+'_fitted.tif'";
+	
+	}
+	Template genPerN3 {
+	
+		parameter<selN3> inN3;
+		parameter<LambertEA> poly (polygon): expr = "selN3/Geometry[inN3]";
+		
+		unit<uint32> relBZ: expr = "subset(BZ/sN3id = inN3)", DialogData = "Geometry", DialogType = "map" {
+			attribute<selN3>				sN3id:			 expr = "BZ/sN3id[Nr_OrgEntity]";
+			attribute<Geography/LambertEA>  Geometry (poly): expr = "BZ/Geometry[Nr_OrgEntity]";
+			attribute<float32>				ENACT_Pop:		 expr = "sum(ENACT/ReadData, createLocalRaster/N3Raster/BZrel)";
+		}
+		container in_regional_totals: expr = "for_each_nedv(AgeClasses/LabelText, 'float32(BZ/popdata/'+AgeClasses/LabelText+'[relBZ/Nr_OrgEntity])', relBZ, float32)" {attribute<float32> total (relBZ): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";}
+		container regional_shares: expr = "for_each_nedv(AgeClasses/LabelText, 'in_regional_totals/total > 0f ? in_regional_totals/'+AgeClasses/LabelText+' / in_regional_totals/total : (float32(SelN3/PopData/'+AgeClasses/LabelText+') / float32(SelN3/PopData/total))[relBZ/sN3id]', relBZ, float32)" {
+			attribute<float32> y65t84 (relBZ): expr = "= 'add('+AsItemList(id(AgeClasses)>12 ? AgeClasses/LabelText : '') +')'";
+		}
+		container regional_totals:	expr = "for_each_nedv(AgeClasses/LabelText, 'in_regional_totals/total > 0f ? in_regional_totals/'+AgeClasses/LabelText+' : regional_shares/'+AgeClasses/LabelText+' * relBZ/ENACT_Pop', relBZ, float32)" {attribute<float32> total (relBZ): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";}
+		
+		
+		unit<dpoint> CoordSys: expr = "LambertEA";
+		
+		container createLocalRaster {
+			unit<uint32> polyPoints: expr = "sequence2points(poly)";
+			parameter<LambertEA> bottomleft: 	expr = "point(min(pointCol(polyPoints/Point)), max(PointRow(polyPoints/Point)), LambertEA)";
+			parameter<LambertEA> upperright: 	expr = "point(max(pointCol(polyPoints/Point)), min(PointRow(polyPoints/Point)), LambertEA)";
+			parameter<LambertEA> geosize:		expr = "upperright - bottomleft";
+			parameter<LambertEA> resolution:	expr = "point(100d, -100d, LambertEA)";
+			parameter<wpoint> 	 gridsize:		expr = "wpoint(geosize / resolution)  + point(1w, 1w, wpoint)";
+			
+			unit<wpoint> N3Raster: expr = "range(gridset(LambertEA, resolution, bottomleft, wpoint), point(0w, 0w), gridsize)" {
+				attribute<uint16> col: expr = "pointCol(id(.))";
+				attribute<Geography/Lambert100mGrid> grid_rel: expr = "id(.)[Geography/Lambert100mGrid]";
+				attribute<Local_boundaries> p_lb_id: expr = "poly2grid(Local_boundaries/Geometry, .)";
+				attribute<Local_boundaries> lb_id:	 expr = "Local_boundaries/PopData/total[p_lb_id] > 0 ? p_lb_id : (0 / 0)[Local_boundaries]";
+				attribute<float32>			inN3:	 expr = "float32(poly2grid(poly, .))";
+				attribute<relBZ>			BZrel:	 expr = "poly2grid(relBZ/Geometry, .)";
+			}
+			
+		}
+		unit<wpoint> ENACT: StorageName = "F:/SourceData/PopAge_disagg/data/ENACT_respop_grid2011v5/RPOP_yr_night_100m.tif", StorageType = "gdal.grid", StorageReadOnly = "True", DialogData = "LambertEA" {
+			attribute<float32> GridData;
+			attribute<float32> ReadData (createLocalRaster/N3Raster);
+			attribute<float32> inN3Data	(createLocalRaster/N3Raster): expr = "createLocalRaster/N3Raster/inN3 * ReadData";
+			attribute<float32> dif		(createLocalRaster/N3Raster): expr = "inN3Data - ReadData";
+		}
+		container inrasters: 				expr = "for_each_ne(AgeClasses/LabelText, 'Templates/loadDataFile_float32tiff_sedac('+quote('%SourceDatadir%/Popage_disagg/data/sedac_rasters/'+AgeFileNames+'_EU_100m')+', createLocalRaster/N3Raster)')";
+		container agerasters: 				expr = "for_each_nedv(AgeClasses/LabelText, 'inrasters/'+AgeClasses/LabelText+'/inFile/ReadData', createLocalRaster/N3Raster, float32)" {attribute<float32> total (createLocalRaster/N3Raster): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";}
+		container perc_sedacrasters: 		expr = "for_each_nedv(AgeClasses/LabelText, 'MakeDefined(agerasters/'+AgeClasses/LabelText+' / agerasters/total, sum(agerasters/'+AgeClasses/LabelText+') / sum(agerasters/total))', createLocalRaster/N3Raster, float32)";
+		container perc_sedacrasters_broad:	expr = "for_each_nedv(BroadClasses/LabelText, 'add('+AsItemList('perc_sedacrasters/'+AgeClasses/LabelText, AgeClasses/broadfrom)+')',createLocalRaster/N3Raster, float32)";
+		container localrasters: 			expr = "for_each_nedv(BroadClasses/LabelText, 'float32(Local_boundaries/PopData/'+BroadClasses/LabelText+'[createLocalRaster/N3Raster/lb_id])', createLocalRaster/N3Raster, float32)" {attribute<float32> total (createLocalRaster/N3Raster): expr = "= 'add('+AsItemList(BroadClasses/LabelText)+')'";}
+		container perc_lrast:				expr = "for_each_nedv(BroadClasses/LabelText, 'localrasters/'+BroadClasses/LabelText+' / localrasters/total', createLocalRaster/N3Raster, float32)";
+		container adjust_raster:			expr = "for_each_nedv(BroadClasses/LabelText, 'MakeDefined(perc_lrast/'+BroadClasses/LabelText+' / perc_sedacrasters_broad/'+BroadClasses/LabelText+', 1f)', createLocalRaster/N3Raster, float32)";
+		container adj_sedacrasters:			expr = "for_each_nedv(AgeClasses/LabelText, switch("
+			"case(selN3/bin_agedclasses[inN3] && id(AgeClasses) > 12, "
+				"'(perc_sedacrasters_broad/y65t84 + perc_sedacrasters_broad/over85) * "
+				"(1f / '+string(pcount(AgeClasses/broadfrom))[AgeClasses/broadfrom]+'f) * (regional_shares/'+BroadClasses/LabelText[AgeClasses/broadfrom]+' / (regional_shares/y65t84 + regional_shares/over85))[createLocalRaster/N3Raster/BZrel]'), "
+			"'perc_sedacrasters/'+AgeClasses/LabelText+' * adjust_raster/'+BroadClasses/LabelText[AgeClasses/broadfrom]), createLocalRaster/N3Raster, float32)" {attribute<float32> total (createLocalRaster/N3Raster): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";}
+		container adj_sedacrasters_x_ENACT: expr = "for_each_nedv(AgeClasses/LabelText, 'adj_sedacrasters/'+AgeClasses/LabelText+' * ENACT/inN3Data', createLocalRaster/N3Raster, float32)" {attribute<float32> total (createLocalRaster/N3Raster): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'";}
+		
+		container init {
+			attribute<float32> ENACT_vs_N3 (relBZ): expr = "sum(adj_sedacrasters_x_ENACT/total, createLocalRaster/N3Raster/BZrel) / regional_totals/total";
+			
+			container BZ_rescaled: 	expr = "for_each_nedv(AgeClasses/LabelText, 'ENACT_vs_N3 * regional_totals/'+AgeClasses/LabelText, relBZ, float32)";
+			container BZ_agg: 		expr = "for_each_nedv(AgeClasses/LabelText, 'sum(adj_sedacrasters_x_ENACT/'+AgeClasses/LabelText+', createLocalRaster/N3Raster/BZrel)', relBZ, float32)" {attribute<float32> total (relBZ):	expr = "= 'add('+ AsItemList(AgeClasses/LabelText) +')'";}
+			container BZ_compare: 	expr = "for_each_nedv(AgeClasses/LabelText, 'MakeDefined(BZ_rescaled/'+ AgeClasses/LabelText +' / BZ_agg/'+ AgeClasses/LabelText +', float32(1))', relBZ, float32)" {attribute<float32> total (relBZ):	expr = "= 'add('+ AsItemList(AgeClasses/LabelText) +')'";}
+			container Grid_rescaled_BZ: expr = "for_each_nedv(AgeClasses/LabelText,   'adj_sedacrasters_x_ENACT/'+AgeClasses/LabelText+' * BZ_compare/'+ AgeClasses/LabelText +'[createLocalRaster/N3Raster/BZrel]', createLocalRaster/N3Raster, float32)" {attribute<float32> total (createLocalRaster/N3Raster): expr = "= 'add('+ AsItemList(AgeClasses/LabelText) +')'";}
+		}
+		
+		container Fit: expr = "Loop(Iterate_fitting_procedure, uint16(20))";
+		
+		parameter<bool> Store: expr = "True", ExplicitSuppliers = "storeGrids;storeMAPEs;";
+		
+		container storeGrids: expr = "for_each_nedva(AgeClasses/LabelText, 'Fit/LastIter/NextValue/Grid_rescaled_BZ/'+AgeClasses/LabelText, createLocalRaster/N3Raster, float32, '%LocalDataProjDir%/ifp/'+selN3/ZoneId[inN3]+'/'+AgeClasses/LabelText+'_fitted.tif')" {
+			attribute<float32> total (createLocalRaster/N3Raster): expr = "= 'add('+AsItemList(AgeClasses/LabelText)+')'", StorageName = "= '%LocalDataProjDir%/ifp/'+selN3/ZoneId[inN3]+'/total_fitted.tif'";
+		}
+		container storeMAPEs: expr = "Templates/TableComposer_uint32_params(Fit/LastIter/MAPEs, '%LocalDataProjDir%/ifp/MAPE/'+selN3/ZoneId[inN3]+'.csv', 'ENACT;'+AsList(AgeClasses/LabelText,';'))";
+		container Grids_ReadOnly: expr = "for_each_ne(AgeClasses/LabelText, 'Templates/loadDataFile_float32tiff_sedac('+quote('%LocalDataProjDir%/ifp/'+selN3/ZoneId[inN3]+'/'+AgeClasses/LabelText+'_fitted')+', Geography/Lambert100mGrid)')";
+		container MAPE_ReadOnly: expr = "Templates/TableChopper_params('%LocalDataProjDir%/ifp/MAPE/'+selN3/ZoneId[inN3]+'.csv')";
+		
+		Template Iterate_fitting_procedure {
+			parameter<uint32> NrIter;
+			container CurrValue
+			{
+				container BZ_rescaled: 		expr = "init/BZ_rescaled";
+				container Grid_rescaled_BZ: expr = "init/Grid_rescaled_BZ";
+			}
+			container NextValue
+			{
+				container BZ_rescaled: expr = "CurrValue/BZ_rescaled";
+				container Local_ENACT_compare {
+					attribute<float32> d 				(createLocalRaster/N3Raster): expr = "MakeDefined(ENACT/inN3Data / CurrValue/Grid_rescaled_BZ/total, 1f)";
+					attribute<float32> absdif			(createLocalRaster/N3Raster): expr = "CurrValue/Grid_rescaled_BZ/total - ENACT/inN3Data";
+					attribute<float32> reldif			(createLocalRaster/N3Raster): expr = "absdif / ENACT/inN3Data";
+				}
+				container Local_rescaled_ENACT: expr = "for_each_nedv(AgeClasses/LabelText, 'CurrValue/Grid_rescaled_BZ/'+AgeClasses/LabelText+' * Local_ENACT_compare/d', createLocalRaster/N3Raster, float32)";
+				container BZ_agg: 				expr = "for_each_nedv(AgeClasses/LabelText, 'sum(Local_rescaled_ENACT/'+AgeClasses/LabelText+', createLocalRaster/N3Raster/BZrel)', relBZ, float32)" {attribute<float32> total (relBZ):	expr = "= 'add('+ AsItemList(AgeClasses/LabelText) +')'";}
+				container BZ_compare: 			expr = "for_each_nedv(AgeClasses/LabelText, 'MakeDefined(CurrValue/BZ_rescaled/'+ AgeClasses/LabelText +' / BZ_agg/'+ AgeClasses/LabelText +', float32(1))', relBZ, float32)" {attribute<float32> total (relBZ):	expr = "= 'add('+ AsItemList(AgeClasses/LabelText) +')'";}
+				container Grid_rescaled_BZ: 	expr = "for_each_nedv(AgeClasses/LabelText, 'Local_rescaled_ENACT/'+AgeClasses/LabelText+' * BZ_compare/'+ AgeClasses/LabelText +'[createLocalRaster/N3Raster/BZrel]', createLocalRaster/N3Raster, float32)" {attribute<float32> total (createLocalRaster/N3Raster): expr = "= 'add('+ AsItemList(AgeClasses/LabelText) +')'";}
+			}
+			container MAPEs: expr = "for_each_nedv(AgeClasses/LabelText, 'mean(abs((NextValue/BZ_agg/'+AgeClasses/LabelText+' - regional_totals/'+ AgeClasses/LabelText +') / regional_totals/'+ AgeClasses/LabelText +'))',void, float32)" {
+				parameter<float32> ENACT: expr = "mean(abs(nextValue/Local_ENACT_compare/reldif))";
+			}
+		}
+	}
+}

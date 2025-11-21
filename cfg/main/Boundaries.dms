@@ -1,0 +1,184 @@
+Container Boundaries: Using = "Geography;" {
+	
+	parameter<uint32> NrN0Zones: expr = "56";
+	parameter<uint32> NrN0Attributes: expr = "5";
+	unit<uint32> CountryTable: expr = "range(uint32, 0, NrN0Zones)"
+	{
+		
+		attribute<string> N0Code: 		expr = "inElements/elements[((id(.)*NrN0Attributes)+0)[inElements]]";
+		attribute<string> LUISACode:	expr = "inElements/elements[((id(.)*NrN0Attributes)+1)[inElements]]";
+		attribute<string> ItlName: 		expr = "inElements/elements[((id(.)*NrN0Attributes)+2)[inElements]]";
+		attribute<string> LUISAName:	expr = "inElements/elements[((id(.)*NrN0Attributes)+3)[inElements]]";
+		attribute<bool> LUISAsel: 		expr = "bool(uint32(inElements/elements[((id(.)*NrN0Attributes)+4)[inElements]]))";
+		
+		unit<uint32> inElements: expr = "range(uint32, 0, NrN0Zones * NrN0Attributes)"
+		{
+		
+			attribute<string> elements: [
+				'UK',	'UK', 	'United Kingdom',	'United_Kingdom',	'1',
+				'NO',	'NO',	'Norway',	'Norway',	'0',
+				'GG',	'UK',	'Guernsey',	'',	'0',
+				'ES',	'ES',	'Spain',	'Spain',	'1',
+				'MT',	'MT',	'Malta',	'Malta',	'1',
+				'GE',	'GE',	'Georgia',	'',	'0',
+				'TR',	'TR',	'Turkey',	'',	'0',
+				'ND',	'UK',	'United Kingdom',	'United_Kingdom',	'1',
+				'AT',	'AT',	'Austria',	'Austria',	'1',
+				'VA',	'VA',	'Vatican city',	'',	'0',
+				'HU',	'HU',	'Hungary',	'Hungary',	'1',
+				'RO',	'RO',	'Romania',	'Romania',	'1',
+				'SE',	'SE',	'Sweden',	'Sweden',	'1',
+				'LU',	'BELUX',	'Luxembourg',	'BelgLux',	'1',
+				'LI',	'LI',	'Liechtenstein',	'',	'0',
+				'BY',	'BY',	'Belarus',	'',	'0',
+				'MD',	'MD',	'Moldovia',	'',	'0',
+				'FO',	'FO',	'Faroe Islands',	'',	'0',
+				'DK',	'DK',	'Denmark',	'Denmark',	'1',
+				'GI',	'UK',	'Gibraltar',	'',	'0',
+				'BE',	'BELUX',	'Belgium',	'BelgLux',	'1',
+				'GR',	'GR',	'Greece',	'Greece',	'1',
+				'SK',	'SK',	'Slovakia',	'Slovakia',	'1',
+				'RU',	'RU',	'Russia',	'',	'0',
+				'CY',	'CY',	'Cyprus',	'Cyprus',	'1',
+				'JE',	'UK',	'Jersey',	'',	'0',
+				'CZ',	'CZ',	'Czech Republic',	'Czechia',	'1',
+				'IM',	'UK',	'Isle of Man',	'',	'0',
+				'UA',	'UA',	'Ukraine',	'',	'0',
+				'GB',	'UK',	'United Kingdom',	'United_Kingdom',	'1',
+				'EE',	'EE',	'Estonia',	'Estonia',	'1',
+				'PT',	'PT',	'Portugal',	'Portugal',	'1',
+				'AD',	'AD',	'Andorra',	'',	'0',
+				'LV',	'LV',	'Latvia',	'Latvia',	'1',
+				'SM',	'SM',	'San Marino',	'',	'0',
+				'BG',	'BG',	'Bulgaria',	'Bulgaria',	'1',
+				'LT',	'LT',	'Lithuania',	'Lithuania',	'1',
+				'IE',	'IE',	'Ireland',	'Ireland',	'1',
+				'CH',	'CH',	'Swiss',	'',	'0',
+				'GL',	'DK',	'Greenland',	'',	'0',
+				'FI',	'FI',	'Finland',	'Finland',	'1',
+				'PL',	'PL',	'Poland',	'Poland',	'1',
+				'IS',	'IS',	'Iceland',	'',	'0',
+				'MC',	'MC',	'Monaco',	'',	'0',
+				'AL',	'AL',	'Albania',	'',	'0',
+				'BA',	'BA',	'Bosnia and Herzegovina',	'Balkans',	'0', //was 1
+				'ME',	'ME',	'Montenegro',	'Balkans',	'0',  //was 1
+				'NL',	'NL',	'Netherlands',	'Netherlands',	'1',
+				'HR',	'HR',	'Croatia',	'Croatia',	'1',
+				'FR',	'FR',	'France',	'France',	'1',
+				'DE',	'DE',	'Germany',	'Germany',	'1',
+				'MK',	'MK',	'Macedonia',	'',	'0',
+				'IT',	'IT',	'Italy',	'Italy',	'1',
+				'SI',	'SI',	'Slovenia',	'Slovenia',	'1',
+				'KS',	'KS',	'Kosovo',	'',	'0',
+				'RS',	'RS',	'Serbia',	'Balkans',	'0']; //was 1
+		}
+	}
+	
+	unit<uint32> National_boundaries: StorageName = "%SourceDataProjDir%/data/zones/JrcRegions.shp", StorageType = "gdal.vect", StorageReadOnly = "True", DialogData = "Geometry", DialogType = "map" {
+		attribute<LambertEA> Geometry (polygon);
+		attribute<string> ZoneId;
+		attribute<CountryTable> CT_id: expr = "rlookup(ZoneId, CountryTable/LUISACode)";
+		attribute<bool> 	Sel: expr = "CountryTable/LUISAsel[CT_id]";
+		attribute<string> LUISAName: expr = "CountryTable/LUISAName[CT_id]";
+		attribute<string> LUISACode: expr = "CountryTable/LUISACode[CT_id]";
+		attribute<RunAreas> RunAreaId: expr = "rlookup(LUISAName, RunAreas/Values)";
+	}
+	unit<uint32> RunAreas: 
+			expr 		= "subset(National_boundaries/Sel)",
+			DialogData 	= "Geometry",
+			DialogType 	= "map"
+		{
+			attribute<LambertEA> Geometry (poly):	expr = "National_boundaries/Geometry[Nr_OrgEntity]";
+			attribute<string> 	 Name:				expr = "National_boundaries/LUISAName[Nr_OrgEntity]";
+			attribute<string>	 ZoneId:			expr = "National_boundaries/ZoneId[Nr_OrgEntity]";
+			attribute<String> 	 Label:             Expr = "Name"; 
+			
+			attribute<.> Grid(Lambert100mGrid):  Expr = "poly2grid(Geometry, Lambert100mGrid, 1)";
+			
+			attribute<LambertEA> lb: 			 Expr = "lower_bound(Geometry)";
+			attribute<LambertEA> ub:			 Expr = "upper_bound(Geometry)";	
+			
+			attribute<UInt32>   Width   : Expr = "UInt32(pointCol(ub)-pointCol(lb))+1", KeepData = "True"; 
+			attribute<UInt32>   Height  : Expr = "UInt32(pointRow(ub)-pointRow(lb))+1", KeepData = "True"; 
+			attribute<UInt32>   RectArea: Expr = "Width*Height", KeepData = "True"; 
+			
+			attribute<Lambert100mGrid> LB100: Expr = "lb[Lambert100mGrid]", KeepData = "True"; 
+			attribute<Lambert100mGrid> UB100: Expr = "ub[Lambert100mGrid]", KeepData = "True"; 
+			
+			attribute<LambertEA/m1000> LB1000: expr = "lb[LambertEA/m1000]", KeepData = "True";
+			attribute<LambertEA/m1000> UB1000: expr = "ub[LambertEA/m1000]", KeepData = "True";
+			
+			parameter<String> RegionDomainSetName: Expr = "'JrcRegions100m'";
+		}
+	unit<uint32> Muni_boundaries_v8: StorageName = "%SourceDataProjDir%/data/LAU2_zones_v8.shp", StorageType = "gdal.vect", StorageReadOnly = "True", dialogdata = "Geometry", DialogType = "map"
+	{
+		attribute<LambertEA> 		Geometry (poly);
+		attribute<string> 			ZoneId: 	expr = "LAU_CODE";
+		attribute<NUTS3_boundaries>	N3Id:		expr = "point_in_polygon(centroid_or_mid(Geometry), NUTS3_boundaries/Geometry)";
+		attribute<LAU1_boundaries>	LAU1_id:	expr = "point_in_polygon(centroid_or_mid(Geometry), LAU1_boundaries/Geometry)";
+		attribute<string>			UniZoneId:	expr = "NUTS3_boundaries/ZoneId[N3Id] + '_' + ZoneId";
+		
+		container PopData: expr = "for_each_nedv(ValFields/Name, 'sum(EuroStatData/'+ ValFields/Name +', EuroStatData/Muni_id_v8)', Muni_boundaries_v8, uint32)"
+		{
+			attribute<uint32> total (Muni_boundaries_v8): expr = "= 'add('+ AsItemList(ValFields/Name) +')'";
+			attribute<bool> n		(Muni_boundaries_v8): expr = "pcount(EuroStatData/Muni_id_v8) > 0 && total > 0";
+		}
+		attribute<.>	p_ZoneIdRaster (Geography/Lambert100mGrid): expr = "poly2grid(Geometry, Geography/Lambert100mGrid)";
+		attribute<.>	ZoneIdRaster (Geography/Lambert100mGrid): expr = "PopData/total[p_ZoneIdRaster] > 0 ? p_ZoneIdRaster : 0 / 0";
+		attribute<bool> Sel_LAU2: expr = "PopData/total > 0";
+		attribute<bool> Sel_LAU1: expr = "PopData/total > 0";
+		attribute<upoint> Uni_point: expr = "point(const(3, ., uint32), id(.), upoint)";
+	}
+	unit<uint32> NUTS3_boundaries_detailed: StorageName = "%SourceDataDir%/EUCS_100m/zones/Nuts/v8/NUTS3_detailed.shp", StorageType = "gdal.vect", StorageReadOnly = "True", dialogdata = "Geometry", DialogType = "map"{
+		attribute<LambertEA> Geometry (poly);
+		attribute<ipoint>	 iGeom (poly): expr = "value(Geometry, ipoint)";
+		attribute<string>  LabelText: expr = "ZoneId", DialogType = "LabelText";
+		attribute<string> ZoneId: 	expr = "NUTS_CODE";
+		attribute<NUTS3_boundaries> N3rel: expr = "rlookup(ZoneId, NUTS3_boundaries/ZoneId)";
+	}
+	unit<uint32> NUTS3_boundaries_simplified: StorageName = "%SourceDataDir%/EUCS_100m/zones/Nuts/v8/NUTS3.shp", StorageType = "gdal.vect", StorageReadOnly = "True", dialogdata = "Geometry", DialogType = "map" // simplified n3 file
+	{
+		attribute<LambertEA> Geometry (poly);
+		attribute<string> ZoneId: 	expr = "trim(Uppercase(NUTS_ID))"; // simplified n3 file
+		attribute<NUTS3_boundaries> N3rel: expr = "rlookup(ZoneId, NUTS3_boundaries/ZoneId)";
+	}
+	unit<uint32> NUTS3_boundaries: expr = "unique(NUTS3_boundaries_detailed/ZoneId)", DialogData = "Geometry", DialogType = "map"
+	{
+		attribute<LambertEA>  Geometry (poly): expr = "partitioned_union_polygon(value(NUTS3_boundaries_detailed/Geometry, ipoint), NUTS3_boundaries_detailed/N3rel)[LambertEA]";
+		attribute<NUTS3_boundaries_simplified> simpleN3rel: expr = "rlookup(ZoneId, NUTS3_boundaries_simplified/ZoneId)";
+		attribute<LambertEA>  simpleGeometry (poly): expr = "NUTS3_boundaries_simplified/Geometry[simpleN3rel]";
+		attribute<RunAreas> RunAreaId: 		expr = "point_in_polygon(centroid_or_mid(Geometry), RunAreas/Geometry)";
+		attribute<string> 	ZoneId: 		expr = "Values";
+		attribute<string> 	estat_zoneId:	expr = "substr(Values, 0, 2) = 'GR' ? 'EL' + substr(Values, 2) : Values";
+			//below list: these are nuts3 zones in which allocation with lau2 constraints leads to MAPEs in the ENACT grid of over 0.01.
+		attribute<bool>		pref_n3:		expr = "ZoneId = 'ES414' || ZoneId = 'FR108' || ZoneId = 'SK010' || ZoneId = 'ES241' || ZoneId = 'FR261' || ZoneId = 'ES418' || ZoneId = 'ES416' || ZoneId = 'ITI42' || ZoneId = 'FR214' || ZoneId = 'FR412' "
+			//below list: these are nuts3 zones in which allocation with lau2 constraints leads to zone-specific MAPEs of over 0.1.
+			" || ZoneId = 'SK042' || ZoneId = 'BG322' || ZoneId = 'BG421' || ZoneId = 'BG424' || ZoneId = 'BG412' || ZoneId = 'IE021' || ZoneId = 'PT171' || ZoneId = 'BG413' || ZoneId = 'BG321' || ZoneId = 'UKM63' || ZoneId = 'BG425' || ZoneId = 'BG411' || ZoneId = 'FR107' || ZoneId = 'PT183' || ZoneId = 'ES523' || ZoneId = 'ITC13' || ZoneId = 'FR832' || ZoneId = 'IE024' || ZoneId = 'SK041'";
+ 		attribute<string>	LabelText: 		expr = "ZoneId", DialogData = "ZoneId";
+		attribute<bool>		multiple:		expr = "pcount(NUTS3_boundaries_detailed/N3rel) > 1";
+		attribute<float64>	Area: expr = "area(Geometry, float64)";
+		attribute<bool> 	skip: expr = "NUTS3_boundaries/ZoneId = 'FR910'  || "
+			"NUTS3_boundaries/ZoneId = 'FR920' || NUTS3_boundaries/ZoneId = 'FR930' || NUTS3_boundaries/ZoneId = 'FR940' || "
+			"NUTS3_boundaries/ZoneId = 'PT200' || NUTS3_boundaries/ZoneId = 'PT300' || "
+			"substr(NUTS3_boundaries/ZoneId, 0, 2) = 'LI' ||"
+			"substr(NUTS3_boundaries/ZoneId, 0, 2) = 'NO' ||"
+			"substr(NUTS3_boundaries/ZoneId, 0, 2) = 'IS' ||"
+			"substr(NUTS3_boundaries/ZoneId, 0, 2) = 'CH' ||"
+			"substr(NUTS3_boundaries/ZoneId, 0, 2) = 'MK' ||"
+			"substr(NUTS3_boundaries/ZoneId, 0, 2) = 'RS' ||"
+			"substr(NUTS3_boundaries/ZoneId, 0, 2) = 'BH' ||"
+			"substr(NUTS3_boundaries/ZoneId, 0, 2) = 'TR'";
+		attribute<bool> 	bin_agedclasses: expr = "substr(NUTS3_boundaries/ZoneId, 0, 2) = 'IT' || substr(NUTS3_boundaries/ZoneId, 0, 2) = 'PL' || substr(NUTS3_boundaries/ZoneId, 0, 2) = 'LT'  || substr(NUTS3_boundaries/ZoneId, 0, 2) = 'CY' || NUTS3_boundaries/ZoneId = 'FR622'";
+		//attribute<bool>		allLAUs:		expr = "all(Muni_boundaries_v8/PopData/n, Muni_boundaries_v8/N3Id) || all(LAU1_boundaries/PopData/n, LAU1_boundaries/N3Id)";
+		//attribute<bool> 	selN3:			expr = "!noPop && (agg_problem || cov_problem)";
+		attribute<.>	p_ZoneIdRaster (Geography/Lambert100mGrid): expr = "poly2grid(Geometry, Geography/Lambert100mGrid)";
+		attribute<upoint> Uni_point: expr = "point(const(1, ., uint32), id(.), upoint)";
+		attribute<LambertEA> lb: 			 Expr = "lower_bound(Geometry)";
+		attribute<LambertEA> ub:			 Expr = "upper_bound(Geometry)";	
+		attribute<Geography/Lambert100mGrid> 	LB100: Expr = "lb[Geography/Lambert100mGrid]", KeepData = "True"; 
+		attribute<Geography/Lambert100mGrid> 	UB100: Expr = "ub[Geography/Lambert100mGrid]", KeepData = "True"; 
+		//attribute<GeoStat_Population_layer> 	LB1k: Expr = "lb[GeoStat_Population_layer]", KeepData = "True"; 
+		//attribute<GeoStat_Population_layer> 	UB1k: Expr = "ub[GeoStat_Population_layer]", KeepData = "True"; 
+	}
+
+}

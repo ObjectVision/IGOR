@@ -1,0 +1,76 @@
+Container Reference_data: Using = "Boundaries;", Descr = "Procedures to generate reference 2011 base maps per narrow age class, with LAU2 census data, SEDAC grids, and additional local data for NL, SK and SI" {
+	
+	#include<muni_estat_data.dms>
+	#include<sedac_rasters.dms>
+	#include<results_analysis.dms>
+
+	unit<uint32> ValFields: NrOfRows = 6
+	{
+		attribute<string> Name: ['Under15','y15t29','y30t49','y50t64','y65t84','Over85'];
+		attribute<string> proto_NL_neigh_Calc: ['max_elem(P_00_14_JR, int32(0))','max_elem(P_15_24_JR, int32(0)) + (max_elem(P_25_44_JR, int32(0)) / int32(4))', '(int32(3) * max_elem(P_25_44_JR, int32(0)) / int32(4)) + (max_elem(P_45_64_JR, int32(0)) / int32(4))', '(int32(3) * max_elem(P_45_64_JR, int32(0))) / int32(4)', '(int32(3) * max_elem(P_65_EO_JR, int32(0))) / int32(4)','max_elem(P_65_EO_JR, int32(0)) / int32(4)'];
+		attribute<string> NL_neigh_Calc: expr = "'(AANT_INW * ' + proto_NL_neigh_Calc + ') / int32(100)'";
+		attribute<string> SK_Calc: ['age_0_14', 'age_15_29', 'age_30_49', 'age_50_64', 'float32(age_65_) / float32(2)', 'float32(age_65_) / float32(2)'];
+		attribute<string> SK_Calc_local: ['TOT_00_14', 
+			'float32(TOT_15_64) / float32(3)',
+			'float32(TOT_15_64) / float32(3)',
+			'float32(TOT_15_64) / float32(3)',
+			'float32(TOT_65) / float32(2)', 'float32(TOT_65) / float32(2)'
+		];
+		attribute<string> generic_Calc: ['uint32(g0014)','uint32(g1529)','uint32(g3049)','uint32(g5064)','uint32(g6500) / 2', 'uint32(g6500) / 2'];
+	}
+	unit<uint32> Local_boundaries: expr = "union_unit(Local_sets/SK_local_boundaries, Local_sets/NL_local_boundaries, Local_sets/SI_local_boundaries)", dialogdata = "Geometry", DialogType = "map", FreeData = "False", KeepData = "True"
+	{
+		attribute<LambertEA> Geometry (poly): expr = "union_data(., Local_sets/SK_local_boundaries/Geometry, Local_sets/NL_local_boundaries/Geometry, Local_sets/SI_local_boundaries/Geometry)";
+		attribute<float64>	Area: expr = "area(Geometry, float64)";
+		attribute<string> ZoneId: expr = "union_data(., Local_sets/SK_local_boundaries/ZoneId, Local_sets/NL_local_boundaries/ZoneId, Local_sets/SI_local_boundaries/ZoneId)";
+		attribute<Muni_boundaries_v8> LAU2_id: expr = "point_in_polygon(centroid_or_mid(Geometry), Muni_boundaries_v8/Geometry)";
+		attribute<NUTS3_boundaries>	N3Id:		expr = "point_in_polygon(centroid_or_mid(Geometry), NUTS3_boundaries/Geometry)";
+		container PopData: expr = "for_each_nedv(ValFields/Name, 'union_data(Local_boundaries, Local_sets/SK_local_boundaries/PopData/' + ValFields/Name + ', Local_sets/NL_local_boundaries/PopData/' + ValFields/Name + ', Local_sets/SI_local_boundaries/PopData/' + ValFields/Name +')', Local_boundaries, uint32)"
+		{
+			attribute<uint32> total (Local_boundaries): expr = "= 'add('+ AsItemList(ValFields/Name) +')'";
+			attribute<uint32> pension_pressure (Local_boundaries): expr = "(y65t84 + Over85) / total";
+		}
+		attribute<.>	p_ZoneIdRaster (Geography/Lambert100mGrid): expr = "poly2grid(Geometry, Geography/Lambert100mGrid)";
+		attribute<upoint> Uni_point: expr = "point(const(5, ., uint32), id(.), upoint)";
+	}
+	container Local_sets {
+		// add SK set here.
+		unit<uint32> SK_local_boundaries: StorageName = "F:/SourceData/PopAge_disagg/data/Slovakia/SK_GRID_ETRS89_LAEA_clip.shp", StorageType = "gdal.vect", StorageReadOnly = "True", dialogdata = "Geometry", DialogType = "map"
+		{
+			attribute<LambertEA> 		Geometry (poly);
+			
+			container PopData: expr = "for_each_nedv(ValFields/Name, 'uint32('+ValFields/SK_Calc_local+')', SK_local_boundaries, uint32)"
+			{
+				attribute<uint32> total (SK_local_boundaries): expr = "= 'add('+ AsItemList(ValFields/Name) +')'";
+				attribute<uint32> pension_pressure (SK_local_boundaries): expr = "(y65t84 + Over85) / total";
+			}
+			attribute<string> ZoneId: expr = "'z_' + string(id(.))";
+		}
+	
+		unit<uint32> NL_local_boundaries: StorageName = "F:/SourceData/PopAge_disagg/data/Netherlands/NL.shp", StorageType = "gdal.vect", StorageReadOnly = "True", dialogdata = "Geometry", DialogType = "map"
+		{
+			attribute<LambertEA> 		Geometry (poly);
+			
+			container PopData: expr = "for_each_nedv(ValFields/Name, 'uint32('+ValFields/generic_Calc+')', NL_local_boundaries, uint32)"
+			{
+				attribute<uint32> total (NL_local_boundaries): expr = "= 'add('+ AsItemList(ValFields/Name) +')'";
+				attribute<uint32> pension_pressure (NL_local_boundaries): expr = "(y65t84 + Over85) / total";
+			}
+			
+			attribute<string> ZoneId: expr = "C28992R100";
+		}
+		unit<uint32> SI_local_boundaries: StorageName = "F:/SourceData/PopAge_disagg/data/Slovenia/SI.shp", StorageType = "gdal.vect", StorageReadOnly = "True", dialogdata = "Geometry", DialogType = "map"
+		{
+			attribute<LambertEA> 		Geometry (poly);
+			
+			container PopData: expr = "for_each_nedv(ValFields/Name, 'uint32('+ValFields/generic_Calc+')', SI_local_boundaries, uint32)"
+			{
+				attribute<uint32> total (SI_local_boundaries): expr = "= 'add('+ AsItemList(ValFields/Name) +')'";
+				attribute<uint32> pension_pressure (SI_local_boundaries): expr = "(y65t84 + Over85) / total";
+			}
+			
+			attribute<string> ZoneId: expr = "'z_' + string(id(.))";
+		}
+	}
+
+}

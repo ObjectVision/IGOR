@@ -1,0 +1,425 @@
+/**********************************************************************************************************************************
+GTFS routing configuration
+Developed by Chris Jacobs-Crisioni, 2019, 2020
+European Commission, Joint Research Centre, Territorial Development Unit, LUISA team
+
+All code free to use, share and adapt under CC BY-SA 3.0 licensing conditions
+For further information please contact chris.jacobs-crisioni@ec.europa.eu
+***********************************************************************************************************************************/
+
+Container Templates {
+
+	unit<wpoint> StandardRaster: 	expr = ""; // to be filled...
+	
+	parameter<string> General_indicator: expr = "'General'";
+	Template loadDataFile_pointshp {
+		parameter<string> 	inPath;
+		
+		unit<dpoint> 		inCoordSys;
+		//unit<wpoint> 		TargetRaster: expr = "StandardRaster";
+		
+		//attribute<inFile> RasterIds (TargetRaster): expr = "inFile/Geometry[TargetRaster]";
+		//unit<uint32> inFile: StorageName = "= '%AfricaSourceDataDir%/data/'+inPath+'.shp'", StorageType = "gdal.vect", StorageReadOnly = "True", DialogData = "Geometry", DialogType = "map"
+		unit<uint32> inFile: StorageName = "= inPath+'.shp'", StorageType = "gdal.vect", StorageReadOnly = "True"
+		{
+			attribute<inCoordSys> Geometry;
+			attribute<float32> 	Pop;
+			attribute<string> 	Name: expr = "'z'+string(id(.))";
+		}
+	}
+	Template loadDataFile_polyshp {
+		parameter<string> 	inPath;
+		unit<wpoint> 		TargetRaster: expr = "StandardRaster";
+		unit<dpoint> 		CoordSys:	  expr = "Geography/LambertEA";
+		
+		attribute<inFile> RasterIds (TargetRaster): expr = "poly2grid(inFile/Geometry, TargetRaster)";
+		//unit<uint32> inFile: StorageName = "= '%AfricaSourceDataDir%/data/'+inPath+'.shp'", StorageType = "gdal.vect", StorageReadOnly = "True", DialogData = "Geometry", DialogType = "map"
+		unit<uint32> inFile: StorageName = "= inPath+'.shp'", StorageType = "gdal.vect", StorageReadOnly = "True", DialogData = "Geometry", DialogType = "map"
+		{
+			attribute<CoordSys> Geometry (poly);
+		}
+	}
+	Template loadDataFile_uint8tiff {
+		parameter<string> 	inPath;
+		unit<wpoint> 		TargetRaster: expr = "StandardRaster";
+		//unit<wpoint>		inFile: StorageName = "= '%AfricaSourceDataDir%/data/'+inPath+'.tif'", StorageType = "gdal.grid", StorageReadOnly = "True", DialogData = "CoordSys", DialogType = "map"
+		unit<wpoint>		inFile: StorageName = "= inPath+'.tif'", StorageType = "gdal.grid", StorageReadOnly = "True", DialogData = "CoordSys", DialogType = "map"
+		{
+			attribute<uint8> GridData;
+			attribute<uint8> ReadData (TargetRaster);
+		}
+	}
+	Template loadDataFile_uint16tiff {
+		parameter<string> 	inPath;
+		unit<wpoint> 		TargetRaster: expr = "StandardRaster";
+		unit<dpoint> 		CoordSys:	  expr = "Geography/LambertEA";
+		//unit<wpoint>		inFile: StorageName = "= '%AfricaSourceDataDir%/data/'+inPath+'.tif'", StorageType = "gdal.grid", StorageReadOnly = "True", DialogData = "CoordSys", DialogType = "map"
+		unit<wpoint>		inFile: StorageName = "= inPath+'.tif'", StorageType = "gdal.grid", StorageReadOnly = "True", DialogData = "CoordSys", DialogType = "map"
+		{
+			attribute<uint16> GridData;
+			attribute<uint16> ReadData (TargetRaster);
+		}
+	}
+	Template loadDataFile_int16tiff {
+		parameter<string> 	inPath;
+		unit<wpoint> 		TargetRaster: expr = "StandardRaster";
+		unit<wpoint>		inFile: StorageName = "= inPath+'.tif'", StorageType = "gdal.grid", StorageReadOnly = "True", DialogData = "CoordSys", DialogType = "map"
+		{
+			attribute<int16> GridData;
+			attribute<int16> ReadData (TargetRaster);
+		}
+	}
+	Template loadDataFile_int32tiff {
+		parameter<string> 	inPath;
+		unit<wpoint> 		TargetRaster: expr = "StandardRaster";
+		unit<dpoint> 		CoordSys:	  expr = "Geography/LambertEA";
+		unit<wpoint>		inFile: StorageName = "= inPath+'.tif'", StorageType = "gdal.grid", StorageReadOnly = "True", DialogData = "CoordSys", DialogType = "map"
+		{
+			attribute<int32> GridData;
+			attribute<int32> ReadData (TargetRaster);
+		}
+	}
+	Template loadDataFile_float32tiff {
+		parameter<string> 	inPath;
+		unit<wpoint> 		TargetRaster: expr = "StandardRaster";
+		unit<dpoint> 		CoordSys:	  expr = "Geography/LambertEA";
+		unit<wpoint>		inFile: StorageName = "= inPath+'.tif'", StorageType = "gdal.grid", StorageReadOnly = "True", DialogData = "CoordSys", DialogType = "map"
+		{
+			attribute<float32> GridData;
+			attribute<float32> ReadData (TargetRaster);
+		}
+	}
+	Template loadDataFile_float32tiff_sedac {
+		parameter<string> 	inPath;
+		unit<wpoint> 		TargetRaster: expr = "StandardRaster";
+		unit<wpoint>		inFile: StorageName = "= inPath+'.tif'", StorageType = "gdal.grid", StorageReadOnly = "True", DialogData = "CoordSys", DialogType = "map"
+		{
+			attribute<float32> GridData;
+			attribute<float32> ReadData (TargetRaster);
+			attribute<TargetRaster> tg_id: expr = "id(.)[TargetRaster]";
+		}
+		unit<wpoint> tg: expr = "TargetRaster" {
+			attribute<inFile> 	if_id: 	expr = "id(.)[inFile]";
+			attribute<float32> 	val:	expr = "inFile/GridData[if_id]";
+			attribute<float32>	def:	expr = "max_elem(val, 0f)", StorageName = "= inPath+'_EU_100m.tif'";
+		}
+		unit<wpoint> readOnly_100m: StorageName = "= inPath+'_EU_100m.tif'", StorageType = "gdal.grid", StorageReadOnly = "True", DialogData = "LambertEA", DialogType = "map" {
+			attribute<float32> gridData;
+			attribute<float32> ReadData (TargetRaster);
+		}
+		
+		
+	}
+	Template TableChopper_transposed
+	{
+		parameter<string> filename := '%projdir%/data/TableChopper';
+		parameter<string>  fieldseparator := ';';
+		unit<uint32> inRegion;
+		unit<uint32> domain: NrOfRows = 10000;
+		
+	   
+		parameter<string>  filedata:  StorageType   = "str", StorageName = "= filename+'.csv'";
+		parameter<string> headerline := readLines(filedata, void, 0);
+		   
+		unit<uint32> field:= Range(uint32, 0, strcount(headerline, fieldseparator) + 1)
+		{
+			attribute<string> name := ReadArray(headerline, field, string, 0);
+			attribute<inRegion> Region: expr = "rlookup(name, inRegion/ZoneId)";
+		}
+			
+		attribute<string> bodylines (domain) := readLines(filedata, domain, headerline/ReadPos);
+		
+		container data := for_each_nedv(
+			  field/name
+			 ,'ReadElems(
+				 BodyLines
+				,string
+				,'+ MakeDefined(field/name[id(field)-1] + '/ReadPos','const(0, domain)')+'
+			 )'
+			 ,domain
+			 ,string
+		  ) {
+			unit<uint32> seldomain: expr = "subset(strlen(Age)>0)";
+		  }
+		
+		unit<uint32> years: expr = "unique(uint32(data/Year))" {attribute<string> Labeltext: expr = "string(values)";}
+		
+		unit<uint32> datapoints: expr = "combine(AgeClasses, years)" {
+			attribute<upoint> uni: expr = "point(nr_1, years/values[nr_2], upoint)"; 
+			container aggr_values: expr = "for_each_nedv(IsDefined(field/Region) ? field/name : '', 'MakeDefined(float32(pcount(relevantdata/datapointId)) / sum(relevantdata/floatingvalues/'+field/name+', relevantdata/datapointId), 0f)', datapoints, float32)";
+		}
+		
+		
+		container relevantdata:= for_each_nedv(field/name, 'data/'+field/name+'[data/seldomain/nr_OrgEntity]',data/seldomain,string) {
+			attribute<AgeClasses> 		AgeClassId 	(data/seldomain): expr = "classify(float32(Age), float32(AgeClasses/from))";
+			attribute<years>			YearsId  	(data/seldomain): expr = "rlookup(uint32(year), years/values)";				
+			attribute<datapoints>		datapointId	(data/seldomain): expr = "rlookup(point(AgeClassId, uint32(year), upoint), datapoints/uni)";
+			
+			container floatingvalues: expr = "for_each_nedv(IsDefined(field/Region) ? field/name : '', '1f / float32(relevantdata/'+field/name+')', data/seldomain, float32)";
+		}
+		 
+	}
+	container EU_Wide_TableChopper: IsTemplate = "True"
+		{
+			parameter<string> name;
+			unit<uint32> Zones;
+			unit<uint32> timesteps;
+			
+			parameter<String> File: StorageName = "= name +'.csv'", StorageType = "str"; 
+			
+			parameter<String> HeaderLine: Expr = "ReadLines(File, void, 0)";
+			 parameter<Bool>   HeaderOK:   expr = "regex_match(HeaderLine, '[^,]++(,[^,]++)*+')";
+			unit<uint32>  PopField: Expr = "range(uint32, 0, strcount(HeaderLine, ','))", IntegrityCheck = "HeaderOK"
+			{
+				attribute<String> 	Name: 					Expr = "ReadArray(HeaderLine, PopField, string, strpos(HeaderLine, ',')+1)";
+				attribute<bool>		IsYear: 				Expr = "uppercase(substr(Name,0,1)) = 'Y'";
+				attribute<UInt16> 	Year: 					Expr = "uppercase(substr(Name,0,1)) = 'Y' ? UInt16(substr(Name, strlen(Name)-4, 4)) : Uint16(0 / 0)";
+				attribute<timesteps> ModelYearRel: 			Expr = "rlookup(uint32(Year), timesteps/year)";
+			}
+			unit<UInt32> BodyDomain: Expr = "Range(UInt32, 0, strcount(File, '\n')-1)"
+			{
+				attribute<string> Line: Expr = "ReadLines(File, BodyDomain, HeaderLine/ReadPos)";
+				attribute<Bool> LinesAreNuts2CodeAndIntegers(BodyDomain): expr = "regex_match(Line, '[A-Z][A-Z]([A-Z]|[0-9])?+([A-Z]|[0-9])?+(,([0-9]++))*+')";
+				
+				attribute<String> ZoneId: Expr = "ReadElems(Line, string, const(0, BodyDomain))";//, IntegrityCheck = "LinesAreNuts2CodeAndIntegers";
+				attribute<Zones> ZoneRel: Expr = "rlookup(ZoneId,Zones/ZoneId)";
+				container Data: Expr = 
+					"for_each_nedv("
+						" PopField/Name"
+						",'ReadElems("
+							" Line"
+							",float32"
+							",'+MakeDefined("
+							" PopField/Name[ID(PopField)-1]+'/ReadPos'"
+							",'ZoneId/ReadPos'"
+							")+'"
+						")'"
+						",BodyDomain"
+						",float32"
+					")";
+			}
+			container InColumns: expr = "for_each_nedv(PopField/Name, 'mean(BodyDomain/Data/'+ PopField/Name +', BodyDomain/ZoneRel)', Zones, float32)";
+			
+			/*unit<uint32> Years: expr = "subset(PopField/IsYear)" 
+			{
+				attribute<string> Name: expr = "PopField/Name[Nr_OrgEntity]"; 
+				attribute<timesteps> ForYear: expr = "rlookup(uint32(PopField/Year), timesteps/year)";
+				attribute<PeriodSet/result> ModelYearRel: expr = "PopField/ModelYearRel[Nr_OrgEntity]"; 
+				attribute<string> ref: expr = "const('Zones',.,string)";
+			}*/
+			
+			/*unit<uint32> Data: expr = "= 'union_unit('+ AsItemList(Years/ref)  +')'"
+			{
+				attribute<float32> 		Pop: 		expr = "= 'union_data(.,'+ AsItemList('InColumns/'+ Years/Name) +')'";
+				attribute<YearRange> 	ForYear:	expr = "= 'union_data(.,'+ AsItemList('const(float32('+string(Years/ForYear)+'),Zones,YearRange)') +')'";
+				attribute<Zones>		ZoneRel:	expr = "= 'union_data(.,'+ AsItemList('id('+ Years/Ref + ')') +')'";
+				attribute<YearRange> 	Year:		expr = "PeriodSet/result/ProjectedYear[rlookup(float32(ForYear), PeriodSet/result/ProjectedYear)]";
+			}*/
+			
+			//unit<uint32> Domain: expr = "Data" {attribute<string> Label: expr = "Zones/Label[ZoneRel]";}
+			
+		}
+	Template loadDataFile_csv {
+		parameter<string> 	inPath;
+		unit<uint32> 	 	TargetUnit: expr = "Geometries/Country";
+		parameter<string> 	FieldSeparator := ',';
+		
+		unit<uint32> 		Domain: expr = "range(uint32, 0, #TargetUnit * 2)";
+		
+		parameter<string> FileData:  StorageType = "str",  StorageName = "=inPath+'.csv'";
+		parameter<string> HeaderLine := readLines(FileData, void, 0);
+		parameter<bool>   HeaderOK   := 
+			  regex_match(
+				  HeaderLine
+				 ,'\"[^\"]*+\"(;\"[^\"]*+\")*+'
+			  );
+				
+		unit<uint32> Field:= Range(UInt32, 0, strcount(HeaderLine, FieldSeparator)+1)
+		{attribute<string> Name := ReadArray(HeaderLine, Field, String, 0);}
+				
+		attribute<string> BodyLines(Domain) := readLines(FileData, Domain, HeaderLine/ReadPos); //,  IntegrityCheck = "HeaderOK";
+		attribute<bool> LinesAreSignedIntegerStringOrEmpy (Domain) := 
+			  regex_match(BodyLines,'(-?+[0-9]++|\"[^\"]*+\")?+(;(-?+[0-9]++|\"[^\"]*+\")?+)*+');
+				
+		container Data := for_each_nedv(Field/Name,'ReadElems(BodyLines,string,'+ MakeDefined(Field/Name[ID(Field)-1]+'/ReadPos','const(0,Domain)')+')',Domain,string);
+	}
+	Template loadDataFile_txt {
+		parameter<string> 	inPath;
+		unit<uint32> 	 	TargetUnit: expr = "Geometries/Country";
+		parameter<string> 	FieldSeparator := ',';
+		
+		unit<uint32> 		Domain: expr = "range(uint32, 0, (#TargetUnit * #AgeClasses) / 2)";
+		
+		parameter<string> FileData:  StorageType = "str",  StorageName = "=inPath";
+		parameter<string> ASCII_Data: expr = "from_utf(FileData)";
+		parameter<string> HeaderLine := readLines(ASCII_Data, void, 0);
+		parameter<bool>   HeaderOK   := 
+			  regex_match(
+				  HeaderLine
+				 ,'\"[^\"]*+\"(;\"[^\"]*+\")*+'
+			  );
+				
+		unit<uint32> Field:= Range(UInt32, 0, strcount(HeaderLine, FieldSeparator)+1)
+		{attribute<string> Name := ReadArray(HeaderLine, Field, String, 0);}
+				
+		attribute<string> BodyLines(Domain) := readLines(ASCII_Data, Domain, HeaderLine/ReadPos); //,  IntegrityCheck = "HeaderOK";
+		attribute<bool> LinesAreSignedIntegerStringOrEmpy (Domain) := 
+			  regex_match(BodyLines,'(-?+[0-9]++|\"[^\"]*+\")?+(;(-?+[0-9]++|\"[^\"]*+\")?+)*+');
+				
+		container RawData := for_each_nedv(Field/Name,'ReadElems(BodyLines,string,'+ MakeDefined(Field/Name[ID(Field)-1]+'/ReadPos','const(0,Domain)')+')',Domain,string) {
+			attribute<bool> NotNull (Domain): expr = "= 'add('+AsItemList('strlen('+Field/Name+')')+') > 0'";
+		}
+		unit<uint32> Data := subset(RawData/NotNull) {container Values:= for_each_nedv(Field/Name, 'RawData/'+Field/Name+'[Nr_OrgEntity]', Data, string);}
+		
+		
+	}
+	unit<SPoint> Neighbourhood: Expr = "range(spoint, point(int16(-1), int16(-1)), point(int16(2), int16(2)))", Descr = "Rooks case contiguous neighbours (first order)"
+	{
+		attribute<uint32> Top : 	Expr = "uint32(id(.) = point(int16(1),int16(0),spoint))";
+		attribute<uint32> Right : 	Expr = "uint32(id(.) = point(int16(0),int16(1),spoint))";
+		attribute<uint32> Bottom : 	Expr = "uint32(id(.) = point(int16(-1),int16(0),spoint))";
+		attribute<uint32> Left : 	Expr = "uint32(id(.) = point(int16(0),int16(-1),spoint))";
+	}
+	
+	Template TableComposer_uint32_params
+	{
+	   Container context;
+	   parameter<String> FileName       := '%LocalDataProjDir%/dist.csv';
+	   // ExportDomain is a domain unit 
+	   // with two attributes as subitems configured: id & Dist
+	   parameter<String> Fieldlist      := 'id;Dist';
+	   parameter<String> FieldSeparator := ';';
+	   
+
+	   unit<uint32> Field := range(uint32,0,strcount(Fieldlist,';')+1)
+	   {
+		  attribute<string> Name := ReadArray(FieldList,.,string,0);
+	   }
+	   parameter<string> NewLine := '\n';
+	   parameter<String> Header  := FieldList;
+	   parameter<String> Body :=
+		  =AsList(
+			 +'String(context/'+Field/Name+')',' + '+Quote(FieldSeparator)+' +'
+		  );
+	  
+	   parameter<String> Result:= Header + NewLine + Body
+	   ,  StorageName = "=FileName"
+	   ,  StorageType = "str";
+	}
+	Template TableComposer_uint64
+	{
+	   unit<uint64> context:= ExportDomain;
+	   container RefFields;
+	   parameter<String> FileName       := '%LocalDataProjDir%/dist.csv';
+	   // ExportDomain is a domain unit 
+	   // with two attributes as subitems configured: id & Dist
+	   parameter<String> Fieldlist      := 'id;Dist';
+	   parameter<String> FieldSeparator := ';';
+
+	   unit<uint32> Field := range(uint32,0,strcount(Fieldlist,';')+1)
+	   {
+		  attribute<string> Name := ReadArray(FieldList,.,string,0);
+	   }
+	   parameter<string> NewLine := '\n';
+	   parameter<String> Header  := FieldList;
+	   attribute<String> Body (context) :=
+		  =AsList(
+			 +'String(RefFields/'+Field/Name+')',' + '+Quote(FieldSeparator)+' +'
+		  );
+	  
+	   parameter<String> Result:= Header + NewLine + AsList(Body, NewLine)
+	   ,  StorageName = "=FileName"
+	   ,  StorageType = "str";
+	}
+	Template TableChopper
+	{
+	   parameter<string> FileName := '%projdir%/data/TableChopper.csv';
+	   unit<uint8>       Domain: nrofrows = 5;
+	   parameter<string> FieldSeparator := ';';
+
+	   parameter<string> FileData
+	   :  StorageType = "str"
+	   ,  StorageName = "=FileName";
+	   parameter<string> HeaderLine := readLines(FileData, void, 0);
+	   parameter<bool>   HeaderOK   := 
+		  regex_match(
+			  HeaderLine
+			 ,'\"[^\"]*+\"(;\"[^\"]*+\")*+'
+		  );
+			
+	   unit<uint32> Field 
+		  := Range(UInt32, 0, strcount(HeaderLine, FieldSeparator)+1)
+	   {
+		  attribute<string> Name := ReadArray(HeaderLine, Field, String, 0);
+	   }
+			
+	   attribute<string> BodyLines(Domain) := 
+		  readLines(FileData, Domain, HeaderLine/ReadPos)
+	   ,  IntegrityCheck = "HeaderOK";
+	   attribute<bool> LinesAreSignedIntegerStringOrEmpy (Domain) := 
+		  regex_match(
+			  BodyLines
+			 ,'(-?+[0-9]++|\"[^\"]*+\")?+(;(-?+[0-9]++|\"[^\"]*+\")?+)*+'
+		  );
+			
+	   container Data := 
+		  for_each_nedv(
+			  Field/Name
+			 ,'ReadElems(
+				 BodyLines
+				,string
+				,'+ MakeDefined(
+					Field/Name[ID(Field)-1]+'/ReadPos'
+				   ,'const(0,Domain)'
+				)+'
+			 )'
+			 ,Domain
+			 ,string
+		  );
+	}
+	Template TableChopper_params
+	{
+	   parameter<string> FileName := '%projdir%/data/TableChopper.csv';
+	   parameter<string> FieldSeparator := ';';
+
+	   parameter<string> FileData
+	   :  StorageType = "str"
+	   ,  StorageName = "=FileName";
+	   parameter<string> HeaderLine := readLines(FileData, void, 0);
+	   parameter<bool>   HeaderOK   := 
+		  regex_match(
+			  HeaderLine
+			 ,'\"[^\"]*+\"(;\"[^\"]*+\")*+'
+		  );
+			
+	   unit<uint32> Field 
+		  := Range(UInt32, 0, strcount(HeaderLine, FieldSeparator)+1)
+	   {
+		  attribute<string> Name := ReadArray(HeaderLine, Field, String, 0);
+	   }
+			
+	   parameter<string> BodyLines:= 
+		  readLines(FileData, void, HeaderLine/ReadPos);
+	   //, IntegrityCheck = "HeaderOK";
+	   parameter<bool> LinesAreSignedIntegerStringOrEmpy := 
+		  regex_match(
+			  BodyLines
+			 ,'(-?+[0-9]++|\"[^\"]*+\")?+(;(-?+[0-9]++|\"[^\"]*+\")?+)*+'
+		  );
+			
+	   container Data := 
+		  for_each_nedv(
+			  Field/Name
+			 ,'ReadElems(
+				 BodyLines
+				,string
+				,'+ MakeDefined(
+					Field/Name[ID(Field)-1]+'/ReadPos'
+				   ,'0'
+				)+'
+			 )'
+			 ,void
+			 ,string
+		  );
+	}
+}
