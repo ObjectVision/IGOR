@@ -1,13 +1,97 @@
-container Classifications: Using = "Units", KeepData = "True", IsHidden = "True"
+container Classifications: Using = "Units", KeepData = "True"
 {
+	unit<uint32> SexAgeClasses := combine(Gender/woT, AgeClasses)
+	{
+		attribute<string> Gender_name    := Gender/woT/label[first_rel];
+		attribute<string> AgeClass_name  := AgeClasses/label[second_rel];
+		
+		attribute<string> name := Gender_name + '_' + AgeClass_name;
+		attribute<string> label := name;
+		
+		container V := for_each_nedv(name, String(ID(.))+'[..]', void, .);
+	}
+
+	unit<uint32> SexBroadAgeClasses := combine(Gender/woT, BroadClasses)
+	{
+		attribute<string> Gender_name    := Gender/woT/label[first_rel];
+		attribute<string> AgeClass_name  := BroadClasses/label[second_rel];
+		
+		attribute<string> name := Gender_name + '_' + AgeClass_name;
+		attribute<string> label := name;
+		
+		container V := for_each_nedv(name, String(ID(.))+'[..]', void, .);
+	}
+
+
+
+	unit<uint32> AgeClasses : NrOfRows =  18
+	, Descr = "Definition of narrow (5y) age classes that are allocated separately" 
+	{
+		attribute<uint32>         from                                        := id(.) * 5, descr = "start of age class";
+		attribute<uint32>         to                                          := id(.) < max(id(.)) ? ((id(.) + 1) * 5) - 1 : 150, descr = "end of age class";
+		attribute<string>         padfrom                                     := (from < 10 ? '0' : '') + string(from), descr = "padded start of age class";
+		attribute<string>         padto                                       := (to < 10 ? '0' : '') + string(to), descr = "padded end of age class";
+		attribute<string>         estat_notf                                  := switch(case(id(.) = 0, 'Y_LT5'), case(id(.) = max(id(.)), 'Y_GE85'), 'Y'+string(from)+'-'+string(to)), descr = "eurostat textual definition of age classes";
+		attribute<string>         Label                                       := id(.) < max(id(.)) 
+																					? to < 10
+																						? 'Y0'+string(from) + '_0'+string(to) 
+																						: 'Y'+string(from) + '_'+string(to) 
+																					: 'Over85', descr = "descriptive name of age class";
+		attribute<BroadClasses>   broadfrom                                   := classify(from, BroadClasses/from), descr = "link with broad age classes";
+		attribute<EurostatClaims> eurostatfrom                                := classify(from, EurostatClaims/from), descr = "link with eurostat claim age classes";
+		attribute<float32>        average                                       := id(.) < max(id(.)) ? float32(from + to + 1) / 2f : float32(from) + 5f, descr = "average age in age class (assumed equal distribution)";
+		attribute<float32>        IntraRegionalMobility                       := IntraRegionalMobility_bc[eurostatfrom], descr = "assumed annual intra regional mobility in age class (static, obtained from census 2011)";
+		attribute<float32>        ClassDuration                               := id(.) < max(id(.)) ? float32(to - from) + 1f : 0f / 0f, descr = "length of age class, null if last age class";
+		attribute<float32>        IntraRegionalMobility_bc   (EurostatClaims) : [0.038366992, 0.066199885, 0.03884331, 0.017948642, 0.014092971], descr = "assumed annual intra regional mobility in age class (static, obtained from census 2011), in a broad age group definition";
+		attribute<float32>        IntraRegionalMobility_no_u (EurostatClaims) := const(0f,EurostatClaims,float32), descr = "assumed zero intra regional mobility (used for testing purposes)";
+		
+		attribute<float32>        Urban_att                                   : [1,1,2,2,2,2,1.15720158759832,1,1,2,1,1,1,1,1,1.7283296818342,1,1], descr = "attractiveness of degurba = urban, rescaled from net migration rates";
+		attribute<float32>        Intermediate_att                            : [1.0496122328333,1.49006881785662,1.64853875851297,1.69647072706806,1.41543240031316,1.5135732132799,1,2,1.62875866921155,1.41455307785412,1.12129970198168,1.78787710238876,1.6373127694263,1.47687937324297,1.50540487715422,2,1.67417270498771,1.57808630632242], descr = "attractiveness of degurba = intermediate, rescaled from net migration rates";
+		attribute<float32>        Rural_att                                   : [2,2,1,1,1,1,2,1.90356929938043,2,1,2,2,2,2,2,1,2,2], descr = "attractiveness of degurba = rural, rescaled from net migration rates";
+	}
+	
+	unit<uint32> BroadClasses : NrOfRows = 3
+	, descr = "Definition of broad (15y) age classes that are instrumental in parts of the procedure" 
+	{
+		// attribute<uint32> from        : [0, 15, 30, 50, 65, 85], descr  = "start of age class";
+		attribute<uint32> from        : [0, 15, 65], descr  = "start of age class";
+		attribute<uint32> to          := id(.) < max(id(.)) ? from[id(.)+1] : 150, descr = "end of age class";
+		// attribute<string> LabelText   := switch(case(id(.) = 0, 'Under15'), case(id(.) = max(id(.)), 'Over85'), 'y'+string(from)+'t'+string(to-1)), DialogType = "LabelText", descr = "descriptive name of age class";
+		attribute<string> name        := name;
+		attribute<string> Label       := switch(case(id(.) = 0, 'LT15'), case(id(.) = max(id(.)), 'GE65'), ''+string(from)+'_'+string(to-1)), descr = "descriptive name of age class";
+		attribute<string> AgeClassAdd := AsItemList(Ageclasses/Label, AgeClasses/broadfrom), descr = "rule governing which narrow age classes need to be added to constitute a broad age class";
+	}
+	
+	unit<uint32> EurostatClaims : NrOfRows = 5
+	, descr = "Definition of broad (15y) age classes as were defined in a previous version of the imputed Eurostat claims. These were instrumental in parts of the procedure, no longer used" 
+	{
+		attribute<uint32> from        : [0, 15, 30, 50, 65], descr = "start of age class";
+		attribute<uint32> to          := id(.) < max(id(.)) ? from[id(.)+1] : 150, descr = "end of age class";
+		attribute<string> LabelText   := switch(case(id(.) = 0, 'Under15'), case(id(.) = max(id(.)), 'Over65'), 'y'+string(from)+'t'+string(to-1)), DialogType = "LabelText", descr = "descriptive name of age class";
+		attribute<string> AgeClassAdd := AsItemList(Ageclasses/LabelText, AgeClasses/EuroStatFrom), descr = "rule governing which narrow age classes need to be added to constitute a broad age class";
+	}
+	unit<uint32> Gender : NrOfRows = 3
+	, descr = "Sex classes" 
+	{
+		attribute<string> Label : ['F','M','T'], descr = "descriptive name of gender class";
+		
+		unit<uint32> woT := select_with_attr_by_cond(., label != 'T');
+	}
+	unit<uint8>  DegUrba_lv1 : NrOfRows = 3, descr = "Degree of urbanization level 1 classes" 
+	{
+		attribute<string> Label : ['Urban', 'Intermediate', 'Rural'], descr = "descriptive name of degurba class";
+		attribute<uint8>  Code  := id(.) + uint8(1), descr = "coding in data";
+	}
+
+
+
+
+
 	unit<uint8> LandUseHa9K: nrofrows = 9
 	{
-		attribute<luHa> Classes: DialogType = "Classification",
-			[0.0, 0.05, 0.1, 0.25, 0.5, 1.0,	2.5, 5.0, 10.0 ];
-		attribute<uint32> Palette: DialogType = "BrushColor",
-			[rgb(192,192,192),	rgb(128,255,128), rgb(170,170,85), rgb(212,85,42), rgb(255,0,0), rgb(0,0,255), rgb(32,64,224), rgb(64,128,192), rgb(96,192,160)];
-		attribute<String> Label: DialogType = "LabelText",
-			[' 0.00 -  0.05', ' 0.05 -  0.10', ' 0.10 -  0.25', ' 0.25 -  0.50', ' 0.50 -  1.00', ' 1.00 -  2.50', ' 2.50 -  5.00', ' 5.00 - 10.00', '10.00 - 25.00'];
+		attribute<luHa>   Classes : [0.0, 0.05, 0.1, 0.25, 0.5, 1.0,	2.5, 5.0, 10.0 ], DialogType = "Classification";
+		attribute<uint32> Palette : [rgb(192,192,192),	rgb(128,255,128), rgb(170,170,85), rgb(212,85,42), rgb(255,0,0), rgb(0,0,255), rgb(32,64,224), rgb(64,128,192), rgb(96,192,160)], DialogType = "BrushColor";
+		attribute<String> Label   : [' 0.00 -  0.05', ' 0.05 -  0.10', ' 0.10 -  0.25', ' 0.25 -  0.50', ' 0.50 -  1.00', ' 1.00 -  2.50', ' 2.50 -  5.00', ' 5.00 - 10.00', '10.00 - 25.00'];
 	}
 	unit<uint8> LuHaDiff11K: nrofrows = 11
 	{

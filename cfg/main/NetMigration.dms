@@ -1,0 +1,58 @@
+container netmigration_analysis {
+	
+	unit<dpoint> LambertEA: 	Descr = "ETRS_1989_LAEA_52N_10E" // "coords from SW to NE";
+		,	SpatialReference = "EPSG:3035"; // EPSG code for Lamber EA
+	
+	unit<uint32> age_x_sex:= unique(nm_2021_readonly/class11);
+	
+	unit<uint32> LAUs: storagename = "%ProjDir%/data/LAU_RG_01M_2021_3035.gpkg", storagetype = "gdal.vect", storagereadonly = "true", dialogdata = "LambertEA" {
+		attribute<string> Label:= LAU_NAME;
+		attribute<uint32> pop_2001:= sum(nm_2011_readonly/pop_2001, nm_2011_readonly/lau_rel);
+		attribute<uint32> pop_2011:= sum(nm_2021_readonly/pop_2011, nm_2021_readonly/lau_rel);
+		attribute<uint32> pop_2021:= sum(nm_2021_readonly/pop_2021, nm_2021_readonly/lau_rel);
+	}
+	
+	unit<uint32> nm_2011_readonly: storagename = "= propvalue(fss_conversion/fss_nm_2011, 'storagename')", storagereadonly = "True" {
+		attribute<string> GISCO_ID;
+		attribute<LAUs> lau_rel:= rlookup(GISCO_ID, LAUs/GISCO_ID);
+		attribute<uint32> pop_2001;
+		attribute<uint32> pop_2011;
+	}
+	unit<uint32> nm_2021_readonly: storagename = "= propvalue(fss_conversion/fss_nm_2021, 'storagename')", storagereadonly = "True" {
+		attribute<string> GISCO_ID;
+		attribute<LAUs> lau_rel:= rlookup(GISCO_ID, LAUs/GISCO_ID);
+		attribute<string> sex;
+		attribute<string> agegroup_2011;
+		attribute<string> agegroup_2021;
+		attribute<string> class11:= sex+'_'+agegroup_2011;
+		attribute<string> class21:= sex+'_'+agegroup_2021;
+		attribute<uint32> pop_2011;
+		attribute<uint32> pop_2021;
+	}
+	
+	container fss_conversion {
+	 	unit<uint32> nm_2011: storagename = "%ProjDir%/data/net_migr_2001_2011.csv", storagetype = "gdal.vect", storagereadonly = "true";
+		unit<uint32> fss_nm_2011:= nm_2011, storagename = "%ProjDir%/data/net_migr_2001_2011.fss" {
+			attribute<string> sex:= nm_2011/sex;
+			attribute<string> GISCO_ID:= nm_2011/GISCO_ID;
+			attribute<string> agegroup_2001:= nm_2011/agegroup_2001;
+			attribute<string> agegroup_2011:= nm_2011/agegroup_2011;
+			attribute<uint32> pop_2001:= uint32(nm_2011/pop_2001);
+			attribute<uint32> pop_2011:= uint32(nm_2011/pop_2011);
+			attribute<float32> pop_survived:= float32(nm_2011/pop_survived);
+			attribute<float32> net_migr:= float32(nm_2011/net_migr);
+		}
+		unit<uint32> nm_2021: storagename = "%ProjDir%/data/net_migr_2011_2021.csv", storagetype = "gdal.vect", storagereadonly = "true";
+		unit<uint32> fss_nm_2021:= nm_2021, storagename = "%ProjDir%/data/net_migr_2011_2021.fss" {
+			attribute<string> sex:= nm_2021/sex;
+			attribute<string> GISCO_ID:= nm_2021/GISCO_ID;
+			attribute<string> agegroup_2011:= nm_2021/agegroup_2011;
+			attribute<string> agegroup_2021:= nm_2021/agegroup_2021;
+			attribute<uint32> pop_2011:= uint32(nm_2021/pop_2011);
+			attribute<uint32> pop_2021:= uint32(nm_2021/pop_2021);
+			attribute<float32> pop_survived:= float32(nm_2021/pop_survived);
+			attribute<float32> net_migr:= float32(nm_2021/net_migr);
+		}
+		
+	}
+}

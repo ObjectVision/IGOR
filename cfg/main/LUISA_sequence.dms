@@ -1,4 +1,6 @@
-container LUISA_sequence: Using = "Boundaries;", Descr = "Procedures to iteratively produce 1km narrow age class breakdowns based on LUISA general population results and additional assumptions" {
+container LUISA_sequence 
+: Using = "Sourcedata/RegionalUnits;classifications"
+, Descr = "Procedures to iteratively produce 1km narrow age class breakdowns based on LUISA general population results and additional assumptions" {
 	
 	parameter<string> LUISA_ref: ['LUISA_Ref20'];
 	

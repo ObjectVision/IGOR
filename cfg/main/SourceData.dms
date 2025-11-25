@@ -1,0 +1,198 @@
+container SourceData 
+: Using = "Geography;Units;Classifications"
+{
+	#include<RegionalUnits.dms>
+
+	container Population 
+	: using = "RegionalUnits"
+	{
+		unit<ipoint> Population := = ModelParameters/PopVersie; 
+	
+		unit<ipoint> Ardeco
+		: StorageName = "='%IGOR_DataDir%/Population/pop_'+ModelParameters/PopYear+'_1km_ARDECO.tif'"
+		, StorageType = "gdal.grid"
+		, StorageReadOnly = "True"
+		, DialogData = "LambertEA"
+		, DialogType = "map"
+		, Descr = "JRC GeoStat 2021 1000m grid (v2): Ardeco scaled to national totals"
+		, LazyCalculated = "true"
+		{
+			attribute<uint32>  GridData;
+			attribute<uint32>  ReadData       (domain);
+			attribute<uint16>  Data           (domain) := uint16(ReadData);
+		}
+		
+		unit<ipoint> ESTAT_Male
+		: StorageName = "='%IGOR_DataDir%/Population/ESTAT_OBS-VALUE-M_'+ModelParameters/PopYear+'_V2.tiff'"
+		, StorageType = "gdal.grid"
+		, StorageReadOnly = "True"
+		, DialogData = "LambertEA"
+		, DialogType = "map"
+		, Descr = "JRC GeoStat 2021 1000m grid (v2): Male Population"
+		, LazyCalculated = "true"
+		{
+			attribute<float32> GridData;
+			attribute<float32> ReadData (domain);
+			attribute<uint16>  Data           (domain) := uint16(ReadData);
+		}
+
+		unit<ipoint> ESTAT_Female
+		: StorageName = "='%IGOR_DataDir%/Population/ESTAT_OBS-VALUE-F_'+ModelParameters/PopYear+'_V2.tiff'"
+		, StorageType = "gdal.grid"
+		, StorageReadOnly = "True"
+		, DialogData = "LambertEA"
+		, DialogType = "map"
+		, Descr = "JRC GeoStat 2021 1000m grid (v2): Female Population"
+		, LazyCalculated = "true"
+		{
+			attribute<float32> GridData;
+			attribute<float32> ReadData (domain);
+			attribute<uint16>  Data           (domain) := uint16(ReadData);
+		}
+		
+		unit<ipoint> ESTAT_LT15
+		: StorageName = "='%IGOR_DataDir%/Population/ESTAT_OBS-VALUE-Y_LT15_'+ModelParameters/PopYear+'_V2.tiff'"
+		, StorageType = "gdal.grid"
+		, StorageReadOnly = "True"
+		, DialogData = "LambertEA"
+		, DialogType = "map"
+		, Descr = "JRC GeoStat 2021 1000m grid (v2): Female Population"
+		, LazyCalculated = "true"
+		{
+			attribute<float32> GridData;
+			attribute<float32> ReadData (domain);
+			attribute<uint16>  Data           (domain) := uint16(ReadData);
+		}
+		
+		unit<ipoint> ESTAT_15_64
+		: StorageName = "='%IGOR_DataDir%/Population/ESTAT_OBS-VALUE-Y_1564_'+ModelParameters/PopYear+'_V2.tiff'"
+		, StorageType = "gdal.grid"
+		, StorageReadOnly = "True"
+		, DialogData = "LambertEA"
+		, DialogType = "map"
+		, Descr = "JRC GeoStat 2021 1000m grid (v2): Female Population"
+		, LazyCalculated = "true"
+		{
+			attribute<float32> GridData;
+			attribute<float32> ReadData (domain);
+			attribute<uint16>  Data           (domain) := uint16(ReadData);
+		}
+		unit<ipoint> ESTAT_GE65
+		: StorageName = "='%IGOR_DataDir%/Population/ESTAT_OBS-VALUE-Y_GE65_'+ModelParameters/PopYear+'_V2.tiff'"
+		, StorageType = "gdal.grid"
+		, StorageReadOnly = "True"
+		, DialogData = "LambertEA"
+		, DialogType = "map"
+		, Descr = "JRC GeoStat 2021 1000m grid (v2): Female Population"
+		, LazyCalculated = "true"
+		{
+			attribute<float32> GridData;
+			attribute<float32> ReadData (domain);
+			attribute<uint16>  Data           (domain) := uint16(ReadData);
+		}
+		
+		container AGEGROUP5_SEX_perLAU
+		{
+			unit<uint32>      domain             := range(uint32, 0, count_rows);
+			parameter<string> csv_filename       := '%IGOR_DataDir%/Population/POP_AGE_SEX_'+ModelParameters/PopYear+'_AGE_5y_v210525.csv';
+			parameter<string> fieldseparator     := ',';
+			
+			parameter<string> filedata_src
+			:  StorageType   = "str"
+			,  StorageName = "=csv_filename"
+			,  StorageReadOnly = "true";
+			parameter<string> filedata    := replace(filedata_src, '\''','', '\"',''); 
+			parameter<uint32> count_rows  := strcount(filedata, '\n') - 1;  
+			parameter<string> headerline  := readLines(filedata, void, 0u64);
+			
+			unit<uint32> field := Range(uint32, 0, strcount(headerline, fieldseparator) + 1)
+			{
+				attribute<string> name := ReadArray(headerline , field, string, 0);
+			}
+				
+			attribute<string> bodylines (domain) := readLines(filedata, domain, headerline/ReadPos);
+
+			container data := 
+				for_each_nedv(
+					field/name
+					,'ReadElems(
+						BodyLines
+						,string
+						,'+ MakeDefined(field/name[sub_or_null(id(field),1)] + '/ReadPos','const(0, domain)')+' 
+						,16
+					)'
+					,domain
+					,string
+				)
+			{
+			}
+			
+			unit<uint32> Result := domain
+			{
+				attribute<LAU>       LAU_rel          := rlookup(data/GISCO_ID, /SourceData/RegionalUnits/LAU/GISCO_ID);
+				attribute<LambertEA> Geometry (poly)  := SourceData/RegionalUnits/LAU/geometry[LAU_rel];
+				attribute<string>    Sex              := data/sex;
+				attribute<string>    AgeGroup         := replace(data/age, 'LT5', 'Y00_04', 'Y5-9', 'Y05_09', 'Y85-89', 'Over85', 'Y90-94', 'Over85', 'Y95-99', 'Over85', 'GE100', 'Over85','-', '_');
+				attribute<float32>   Pop              := float32(data/Pop);
+				
+				attribute<string>    SexAgeClass_name := Sex+'_'+AgeGroup;
+				
+				attribute<SexAgeClasses> SexAgeClass_rel := rlookup(SexAgeClass_name, SexAgeClasses/name);
+			}
+		}
+		
+	
+		// container Pop_5yr_AgeSex_perNUTS3
+		// : using = "RegionalUnits"
+		// , URL = "https://territorial.ec.europa.eu/ardeco/query-builder?lng=en&ctx=ardeco"
+		// {
+			// unit<uint32> Population_2021_AgeGroupSex := ='union_unit('+AsItemList('Read_ParquetFiles/'+DownloadedFiles/name+'/Read')+')'
+			// {
+				// attribute<LambertEA> geometry (poly) := rjoin(Territory_id, NUTS3/NUTS_ID, NUTS3/geometry);
+				// attribute<string> Territory_id   := ='union_data(.,'+AsItemList('Read_ParquetFiles/'+DownloadedFiles/name+'/Read/TERRITORY_ID')+')';
+				// attribute<string> Territory_name := ='union_data(.,'+AsItemList('Read_ParquetFiles/'+DownloadedFiles/name+'/Read/NAME_HTML')+')';
+				// attribute<uint32> Year           := ='union_data(.,'+AsItemList('Read_ParquetFiles/'+DownloadedFiles/name+'/Read/Year')+')[uint32]';
+				// attribute<string> AgeGroup       := ='union_data(.,'+AsItemList('Read_ParquetFiles/'+DownloadedFiles/name+'/Read/Age')+')';
+				// attribute<string> Sex            := ='union_data(.,'+AsItemList('Read_ParquetFiles/'+DownloadedFiles/name+'/Read/Sex')+')';
+				// attribute<uint32> Population     := ='union_data(.,'+AsItemList('Read_ParquetFiles/'+DownloadedFiles/name+'/Read/Value')+')[uint32]';
+			// }
+		
+			// container Read_ParquetFiles :=
+				// for_each_ne(
+					// DownloadedFiles/Name
+					// , 'Read_ParquetFiles_T('+quote(DownloadedFiles/label)+')'
+				// );
+				
+			// unit<uint8> DownloadedFiles : NrOfRows = 10
+			// {
+				// attribute<string> label : 
+				// [
+					 // '_ARDECO-SNPTZ.versions_2021-unit_NR-age_Y_LT5,Y5-9,Y10-14-sex_F-level_id_3'
+					// ,'_ARDECO-SNPTZ.versions_2021-unit_NR-age_Y_LT5,Y5-9,Y10-14-sex_M-level_id_3'
+					// ,'_ARDECO-SNPTZ.versions_2021-unit_NR-age_Y15-19,Y20-24,Y25-29-sex_F-level_id_3'
+					// ,'_ARDECO-SNPTZ.versions_2021-unit_NR-age_Y15-19,Y20-24,Y25-29-sex_M-level_id_3'
+					// ,'_ARDECO-SNPTZ.versions_2021-unit_NR-age_Y30-34,Y35-39,Y40-44-sex_F-level_id_3'
+					// ,'_ARDECO-SNPTZ.versions_2021-unit_NR-age_Y30-34,Y35-39,Y40-44-sex_M-level_id_3'
+					// ,'_ARDECO-SNPTZ.versions_2021-unit_NR-age_Y45-49,Y50-54,Y55-59,Y60-64-sex_F-level_id_3'
+					// ,'_ARDECO-SNPTZ.versions_2021-unit_NR-age_Y45-49,Y50-54,Y55-59,Y60-64-sex_M-level_id_3'
+					// ,'_ARDECO-SNPTZ.versions_2021-unit_NR-age_Y65-69,Y70-74,Y75-79,Y80-84,Y_GE85-sex_F-level_id_3'
+					// ,'_ARDECO-SNPTZ.versions_2021-unit_NR-age_Y65-69,Y70-74,Y75-79,Y80-84,Y_GE85-sex_M-level_id_3'
+				// ];
+				// attribute<string> name := AsItemName(label);
+			// }
+			
+			// Template Read_ParquetFiles_T
+			// {
+				// parameter<string> filename;
+		
+				// unit<uint32> Read 
+				// : StorageName = "%IGOR_DataDir%/Population/_ARDECO-SNPTZ.versions_2021-unit_NR-age_Y_LT5,Y5-9,Y10-14-sex_F-level_id_3.parquet_"
+				// , StorageType = "gdal.vect"
+				// {
+				
+				// }
+			// }
+		// }
+	}
+}
+

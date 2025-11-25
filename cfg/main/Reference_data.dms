@@ -1,76 +1,372 @@
-Container Reference_data: Using = "Boundaries;", Descr = "Procedures to generate reference 2011 base maps per narrow age class, with LAU2 census data, SEDAC grids, and additional local data for NL, SK and SI" {
+Container Reference_data
+: Using = "SourceData/RegionalUnits;SourceData"
+, Descr = "Procedures to generate reference 2011 base maps per narrow age class, with LAU2 census data, SEDAC grids, and additional local data for NL, SK and SI" 
+{
+	attribute<float32>  Ardeco           (domain) := float32(Population/Ardeco/data);
+	attribute<float32>  Ardeco_perLAU       (LAU) := sum(Ardeco, LAU/per_domain);
+	attribute<float32>  ESTAT_Male       (domain) := float32(Population/ESTAT_Male/data);
+	attribute<float32>  ESTAT_Female     (domain) := float32(Population/ESTAT_Female/data);
+	attribute<float32>  ESTAT_LT15       (domain) := float32(Population/ESTAT_LT15/data);
+	attribute<float32>  ESTAT_15_64      (domain) := float32(Population/ESTAT_15_64/data);
+	attribute<float32>  ESTAT_GE65       (domain) := float32(Population/ESTAT_GE65/data);
 	
-	#include<muni_estat_data.dms>
-	#include<sedac_rasters.dms>
-	#include<results_analysis.dms>
+	attribute<float32>  ESTAT_Total_Sex  (domain) := ESTAT_Male + ESTAT_Female;
+	attribute<float32>  ESTAT_Total_Age  (domain) := ESTAT_LT15 + ESTAT_15_64 + ESTAT_GE65;
 
-	unit<uint32> ValFields: NrOfRows = 6
-	{
-		attribute<string> Name: ['Under15','y15t29','y30t49','y50t64','y65t84','Over85'];
-		attribute<string> proto_NL_neigh_Calc: ['max_elem(P_00_14_JR, int32(0))','max_elem(P_15_24_JR, int32(0)) + (max_elem(P_25_44_JR, int32(0)) / int32(4))', '(int32(3) * max_elem(P_25_44_JR, int32(0)) / int32(4)) + (max_elem(P_45_64_JR, int32(0)) / int32(4))', '(int32(3) * max_elem(P_45_64_JR, int32(0))) / int32(4)', '(int32(3) * max_elem(P_65_EO_JR, int32(0))) / int32(4)','max_elem(P_65_EO_JR, int32(0)) / int32(4)'];
-		attribute<string> NL_neigh_Calc: expr = "'(AANT_INW * ' + proto_NL_neigh_Calc + ') / int32(100)'";
-		attribute<string> SK_Calc: ['age_0_14', 'age_15_29', 'age_30_49', 'age_50_64', 'float32(age_65_) / float32(2)', 'float32(age_65_) / float32(2)'];
-		attribute<string> SK_Calc_local: ['TOT_00_14', 
-			'float32(TOT_15_64) / float32(3)',
-			'float32(TOT_15_64) / float32(3)',
-			'float32(TOT_15_64) / float32(3)',
-			'float32(TOT_65) / float32(2)', 'float32(TOT_65) / float32(2)'
-		];
-		attribute<string> generic_Calc: ['uint32(g0014)','uint32(g1529)','uint32(g3049)','uint32(g5064)','uint32(g6500) / 2', 'uint32(g6500) / 2'];
-	}
-	unit<uint32> Local_boundaries: expr = "union_unit(Local_sets/SK_local_boundaries, Local_sets/NL_local_boundaries, Local_sets/SI_local_boundaries)", dialogdata = "Geometry", DialogType = "map", FreeData = "False", KeepData = "True"
-	{
-		attribute<LambertEA> Geometry (poly): expr = "union_data(., Local_sets/SK_local_boundaries/Geometry, Local_sets/NL_local_boundaries/Geometry, Local_sets/SI_local_boundaries/Geometry)";
-		attribute<float64>	Area: expr = "area(Geometry, float64)";
-		attribute<string> ZoneId: expr = "union_data(., Local_sets/SK_local_boundaries/ZoneId, Local_sets/NL_local_boundaries/ZoneId, Local_sets/SI_local_boundaries/ZoneId)";
-		attribute<Muni_boundaries_v8> LAU2_id: expr = "point_in_polygon(centroid_or_mid(Geometry), Muni_boundaries_v8/Geometry)";
-		attribute<NUTS3_boundaries>	N3Id:		expr = "point_in_polygon(centroid_or_mid(Geometry), NUTS3_boundaries/Geometry)";
-		container PopData: expr = "for_each_nedv(ValFields/Name, 'union_data(Local_boundaries, Local_sets/SK_local_boundaries/PopData/' + ValFields/Name + ', Local_sets/NL_local_boundaries/PopData/' + ValFields/Name + ', Local_sets/SI_local_boundaries/PopData/' + ValFields/Name +')', Local_boundaries, uint32)"
-		{
-			attribute<uint32> total (Local_boundaries): expr = "= 'add('+ AsItemList(ValFields/Name) +')'";
-			attribute<uint32> pension_pressure (Local_boundaries): expr = "(y65t84 + Over85) / total";
-		}
-		attribute<.>	p_ZoneIdRaster (Geography/Lambert100mGrid): expr = "poly2grid(Geometry, Geography/Lambert100mGrid)";
-		attribute<upoint> Uni_point: expr = "point(const(5, ., uint32), id(.), upoint)";
-	}
-	container Local_sets {
-		// add SK set here.
-		unit<uint32> SK_local_boundaries: StorageName = "F:/SourceData/PopAge_disagg/data/Slovakia/SK_GRID_ETRS89_LAEA_clip.shp", StorageType = "gdal.vect", StorageReadOnly = "True", dialogdata = "Geometry", DialogType = "map"
-		{
-			attribute<LambertEA> 		Geometry (poly);
-			
-			container PopData: expr = "for_each_nedv(ValFields/Name, 'uint32('+ValFields/SK_Calc_local+')', SK_local_boundaries, uint32)"
-			{
-				attribute<uint32> total (SK_local_boundaries): expr = "= 'add('+ AsItemList(ValFields/Name) +')'";
-				attribute<uint32> pension_pressure (SK_local_boundaries): expr = "(y65t84 + Over85) / total";
-			}
-			attribute<string> ZoneId: expr = "'z_' + string(id(.))";
-		}
+	attribute<float32>  Share_Male       (domain) := ESTAT_Male   / ESTAT_Total_Sex;
+	attribute<float32>  Share_Female     (domain) := 1f - Share_Male;
+	attribute<float32>  Share_LT15       (domain) := ESTAT_LT15   / ESTAT_Total_Age;
+	attribute<float32>  Share_15_64      (domain) := ESTAT_15_64  / ESTAT_Total_Age;
+	attribute<float32>  Share_GE65       (domain) := ESTAT_GE65   / ESTAT_Total_Age;
 	
-		unit<uint32> NL_local_boundaries: StorageName = "F:/SourceData/PopAge_disagg/data/Netherlands/NL.shp", StorageType = "gdal.vect", StorageReadOnly = "True", dialogdata = "Geometry", DialogType = "map"
+	attribute<float32>  Share_M_LT15     (domain) := Share_Male * Share_LT15;
+	attribute<float32>  Share_M_15_64    (domain) := Share_Male * Share_15_64;
+	attribute<float32>  Share_M_GE65     (domain) := Share_Male * Share_GE65;
+	
+	attribute<float32>  Share_F_LT15     (domain) := Share_Female * Share_LT15;
+	attribute<float32>  Share_F_15_64    (domain) := Share_Female * Share_15_64;
+	attribute<float32>  Share_F_GE65     (domain) := Share_Female * Share_GE65;
+	
+	attribute<float32>  CheckSharesM     (domain) := Share_M_LT15 + Share_M_15_64 + Share_M_GE65;
+	attribute<float32>  CheckSharesF     (domain) := Share_F_LT15 + Share_F_15_64 + Share_F_GE65;
+	attribute<float32>  CheckSharesT     (domain) := CheckSharesM + CheckSharesF;
+	
+	
+	container Population_perSexAgeClasses_perLAU := 
+		for_each_nedv(
+			SexAgeClasses/name
+			, 'sum(Population/AGEGROUP5_SEX_perLAU/result/SexAgeClass_rel == SexAgeClasses/v/'+SexAgeClasses/name+' ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel)'
+			, LAU
+			, float32
+		)
+	{
+		attribute<float32> Total (LAU):= = 'add('+AsItemList(SexAgeClasses/name)+')';
+	}
+		
+	
+	/// BZ moet LAU worden.
+	/// local raster is nu weg, dus gewoon naar 1km grid verwijzen.
+	/// ENACT was totaal pop grid, wordt nu ARDECO.
+	/// sedac wordt nu de ESTAT data (die 6 gridjes)
+	
+	
+	// unit<uint32> relBZ:= select_with_org_rel(BZ/sN3id = inN3)
+	// {
+		// attribute<selN3> sN3id: = BZ/sN3id[org_rel]";
+		// attribute<Geography/LambertEA> Geometry (poly):= BZ/Geometry[org_rel]";
+		// attribute<float32> ENACT_Pop: = sum(ENACT/ReadData, createLocalRaster/N3Raster/BZrel)";
+	// }
+	
+	// container in_regional_totals := 
+		// for_each_nedv(
+			// SexAgeClasses/Label
+			// , 'float32(LAU/popdata/'+SexAgeClasses/Label+'[relBZ/org_rel])'
+			// , relBZ
+			// , float32
+		// )
+	// {
+		// attribute<float32> total (relBZ):= = 'add('+AsItemList(SexAgeClasses/Label)+')';
+	// }
+	
+	container Regional_Shares := 
+		for_each_nedv(
+			SexAgeClasses/name
+			, 'Population_perSexAgeClasses_perLAU/total > 0f 
+					? Population_perSexAgeClasses_perLAU/'+SexAgeClasses/name+' / Population_perSexAgeClasses_perLAU/total 
+					: float32(SelN3/PopData/'+SexAgeClasses/name+') / float32(SelN3/PopData/total)' //@CHRIS, waarom dit?
+			, LAU
+			, float32
+		)
+	{
+		// attribute<float32> y65t84 (relBZ):= = 'add('+AsItemList(id(SexAgeClasses)>12 ? SexAgeClasses/name : '') +')';
+	}
+	
+	container Regional_totals := 
+		for_each_nedv(
+			SexAgeClasses/name
+			, 'Population_perSexAgeClasses_perLAU/total > 0f 
+					? Population_perSexAgeClasses_perLAU/'+SexAgeClasses/name+' 
+					: Regional_shares/'+SexAgeClasses/name+' * Ardeco_perLAU'
+			, LAU
+			, float32
+		)
+	{
+		attribute<float32> total (LAU):= = 'add('+AsItemList(SexAgeClasses/name)+')';
+	}
+	
+	
+	// container inrasters:= 
+		// for_each_ne(
+			// SexAgeClasses/name
+			// , 'Templates/loadDataFile_float32tiff_sedac('+quote('%SourceDatadir%/Popage_disagg/data/sedac_rasters/'+AgeFileNames+'_EU_100m')+', createLocalRaster/N3Raster)'
+		// );
+		
+	// container agerasters := 
+		// for_each_nedv(
+			// SexAgeClasses/name
+			// , 'inrasters/'+SexAgeClasses/name+'/inFile/ReadData'
+			// , createLocalRaster/N3Raster
+			// , float32)
+	// {
+		// attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+AsItemList(SexAgeClasses/name)+')';
+	// }
+	
+	// container perc_sedacrasters := 
+		// for_each_nedv(
+			// SexAgeClasses/name
+			// , 'MakeDefined(agerasters/'+SexAgeClasses/name+' / agerasters/total, sum(agerasters/'+SexAgeClasses/name+') / sum(agerasters/total))'
+			// , createLocalRaster/N3Raster
+			// , float32
+		// );
+		
+	container Share_ESTAT_Broad := 
+		for_each_nedv(
+			SexBroadAgeClasses/name
+			, 'Share_'+SexBroadAgeClasses/name
+			, domain
+			, float32
+		);
+		
+	// container localrasters := 
+		// for_each_nedv(
+			// BroadClasses/Label
+			// , 'float32(Local_boundaries/PopData/'+BroadClasses/Label+'[createLocalRaster/N3Raster/lb_id])'
+			// , createLocalRaster/N3Raster
+			// , float32
+		// )
+	// {
+		// attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+AsItemList(BroadClasses/Label)+')';
+	// }
+	
+	// container perc_lrast := 
+		// for_each_nedv(
+			// BroadClasses/Label
+			// , 'localrasters/'+BroadClasses/Label+' / localrasters/total'
+			// , createLocalRaster/N3Raster
+			// , float32
+		// );
+		
+	// container adjust_raster := 
+		// for_each_nedv(
+			// BroadClasses/Label
+			// , 'MakeDefined(perc_lrast/'+BroadClasses/Label+' / perc_sedacrasters_broad/'+BroadClasses/Label+', 1f)'
+			// , createLocalRaster/N3Raster
+			// , float32
+		// );
+		
+	container adj_ESTATrasters := //fka adj_sedacrasters
+		for_each_nedv(
+			SexAgeClasses/name
+			, switch(
+				case(selN3/bin_agedclasses[inN3] && id(SexAgeClasses) > 12
+						, '(Share_ESTAT_Broad/y65t84 + Share_ESTAT_Broad/over85) 
+								* (1f / '+string(pcount(SexAgeClasses/broadfrom))[SexAgeClasses/broadfrom]+'f) 
+								* (regional_shares/'+BroadClasses/Label[SexAgeClasses/broadfrom]+' 
+								/ (regional_shares/y65t84 + regional_shares/over85))[createLocalRaster/N3Raster/BZrel]'
+					) 
+				,'perc_sedacrasters/'+SexAgeClasses/name+' * adjust_raster/'+BroadClasses/Label[SexAgeClasses/broadfrom]
+			)
+			, createLocalRaster/N3Raster
+			, float32
+		)
+	{
+		attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+AsItemList(SexAgeClasses/name)+')';
+	}
+	
+	container adj_sedacrasters_x_ENACT := 
+		for_each_nedv(
+			SexAgeClasses/name
+			, 'adj_sedacrasters/'+SexAgeClasses/name+' * ENACT/inN3Data', createLocalRaster/N3Raster, float32)
+	{
+		attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+AsItemList(SexAgeClasses/name)+')';
+	}
+	
+	container init 
+	{
+		attribute<float32> ENACT_vs_N3 (relBZ):= sum(adj_sedacrasters_x_ENACT/total, createLocalRaster/N3Raster/BZrel) / regional_totals/total;
+		
+		container BZ_rescaled := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, 'ENACT_vs_N3 * regional_totals/'+SexAgeClasses/name
+				, relBZ
+				, float32
+			);
+			
+		container BZ_agg := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, 'sum(adj_sedacrasters_x_ENACT/'+SexAgeClasses/name+', createLocalRaster/N3Raster/BZrel)'
+				, relBZ
+				, float32
+			)
 		{
-			attribute<LambertEA> 		Geometry (poly);
-			
-			container PopData: expr = "for_each_nedv(ValFields/Name, 'uint32('+ValFields/generic_Calc+')', NL_local_boundaries, uint32)"
-			{
-				attribute<uint32> total (NL_local_boundaries): expr = "= 'add('+ AsItemList(ValFields/Name) +')'";
-				attribute<uint32> pension_pressure (NL_local_boundaries): expr = "(y65t84 + Over85) / total";
-			}
-			
-			attribute<string> ZoneId: expr = "C28992R100";
+			attribute<float32> total (relBZ) := = 'add('+ AsItemList(SexAgeClasses/name) +')';
 		}
-		unit<uint32> SI_local_boundaries: StorageName = "F:/SourceData/PopAge_disagg/data/Slovenia/SI.shp", StorageType = "gdal.vect", StorageReadOnly = "True", dialogdata = "Geometry", DialogType = "map"
+		
+		container BZ_compare := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, 'MakeDefined(BZ_rescaled/'+ SexAgeClasses/name +' / BZ_agg/'+ SexAgeClasses/name +', float32(1))'
+				, relBZ
+				, float32
+			)
 		{
-			attribute<LambertEA> 		Geometry (poly);
+			attribute<float32> total (relBZ):= = 'add('+ AsItemList(SexAgeClasses/name) +')';
+		}
+		
+		container Grid_rescaled_BZ := 
+			for_each_nedv(
+				SexAgeClasses/name
+				,'adj_sedacrasters_x_ENACT/'+SexAgeClasses/name+' * BZ_compare/'+ SexAgeClasses/name +'[createLocalRaster/N3Raster/BZrel]'
+				, createLocalRaster/N3Raster
+				, float32
+			)
+		{
+			attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+ AsItemList(SexAgeClasses/name) +')';
+		}
+	}
+	
+	container Fit:= Loop(Iterate_fitting_procedure, uint16(20));
+	
+	parameter<bool> Store := True, ExplicitSuppliers = "storeGrids;storeMAPEs";
+	
+	container storeGrids:= 
+		for_each_nedva(
+			SexAgeClasses/name
+			, 'Fit/LastIter/NextValue/Grid_rescaled_BZ/'+SexAgeClasses/name
+			, createLocalRaster/N3Raster
+			, float32
+			, '%LocalDataProjDir%/ifp/'+selN3/ZoneId[inN3]+'/'+SexAgeClasses/name+'_fitted.tif'
+		)
+	{
+		attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+AsItemList(SexAgeClasses/name)+')', StorageName = "= '%LocalDataProjDir%/ifp/'+selN3/ZoneId[inN3]+'/total_fitted.tif'";
+	}
+	
+	container storeMAPEs := Templates/TableComposer_uint32_params(Fit/LastIter/MAPEs, '%LocalDataProjDir%/ifp/MAPE/'+selN3/ZoneId[inN3]+'.csv', 'ENACT;'+AsList(SexAgeClasses/name,';'));
+	
+	container Grids_ReadOnly := 
+		for_each_ne(
+			SexAgeClasses/name
+			, 'Templates/loadDataFile_float32tiff_sedac('+quote('%LocalDataProjDir%/ifp/'+selN3/ZoneId[inN3]+'/'+SexAgeClasses/name+'_fitted')+', Geography/Lambert100mGrid)'
+		);
+		
+	container MAPE_ReadOnly := Templates/TableChopper_params('%LocalDataProjDir%/ifp/MAPE/'+selN3/ZoneId[inN3]+'.csv');
+	
+	Template Iterate_fitting_procedure 
+	{
+		parameter<uint32> NrIter;
+		container CurrValue
+		{
+			container BZ_rescaled      := init/BZ_rescaled;
+			container Grid_rescaled_BZ := init/Grid_rescaled_BZ;
+		}
+		container NextValue
+		{
+			container BZ_rescaled:= CurrValue/BZ_rescaled;
 			
-			container PopData: expr = "for_each_nedv(ValFields/Name, 'uint32('+ValFields/generic_Calc+')', SI_local_boundaries, uint32)"
+			container Local_ENACT_compare 
 			{
-				attribute<uint32> total (SI_local_boundaries): expr = "= 'add('+ AsItemList(ValFields/Name) +')'";
-				attribute<uint32> pension_pressure (SI_local_boundaries): expr = "(y65t84 + Over85) / total";
+				attribute<float32> d      (createLocalRaster/N3Raster) := MakeDefined(ENACT/inN3Data / CurrValue/Grid_rescaled_BZ/total, 1f);
+				attribute<float32> absdif (createLocalRaster/N3Raster) := CurrValue/Grid_rescaled_BZ/total - ENACT/inN3Data;
+				attribute<float32> reldif (createLocalRaster/N3Raster) := absdif / ENACT/inN3Data;
 			}
 			
-			attribute<string> ZoneId: expr = "'z_' + string(id(.))";
+			container Local_rescaled_ENACT := 
+				for_each_nedv(
+					SexAgeClasses/name
+					, 'CurrValue/Grid_rescaled_BZ/'+SexAgeClasses/name+' * Local_ENACT_compare/d'
+					, createLocalRaster/N3Raster
+					, float32
+				);
+				
+			container BZ_agg := 
+				for_each_nedv(
+					SexAgeClasses/name
+					, 'sum(Local_rescaled_ENACT/'+SexAgeClasses/name+', createLocalRaster/N3Raster/BZrel)'
+					, relBZ
+					, float32
+				)
+			{
+				attribute<float32> total (relBZ) := = 'add('+ AsItemList(SexAgeClasses/name) +')';
+			}
+			
+			container BZ_compare := 
+				for_each_nedv(
+					SexAgeClasses/name
+					, 'MakeDefined(CurrValue/BZ_rescaled/'+ SexAgeClasses/name +' / BZ_agg/'+ SexAgeClasses/name +', float32(1))'
+					, relBZ
+					, float32
+				)
+			{
+				attribute<float32> total (relBZ) := = 'add('+ AsItemList(SexAgeClasses/name) +')';
+			}
+			
+			container Grid_rescaled_BZ := 
+				for_each_nedv(
+					SexAgeClasses/name
+					, 'Local_rescaled_ENACT/'+SexAgeClasses/name+' * BZ_compare/'+ SexAgeClasses/name +'[createLocalRaster/N3Raster/BZrel]'
+					, createLocalRaster/N3Raster
+					, float32
+				)
+			{
+				attribute<float32> total (createLocalRaster/N3Raster) := = 'add('+ AsItemList(SexAgeClasses/name) +')';
+			}
+		}
+		
+		container MAPEs := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, 'mean(abs((NextValue/BZ_agg/'+SexAgeClasses/name+' - regional_totals/'+ SexAgeClasses/name +') / regional_totals/'+ SexAgeClasses/name +'))'
+				,void
+				, float32
+			)
+		{
+			parameter<float32> ENACT:= mean(abs(nextValue/Local_ENACT_compare/reldif));
 		}
 	}
 
+
+
+	// #include<muni_estat_data.dms>
+	// #include<sedac_rasters.dms>
+	// #include<results_analysis.dms>
 }
+
+	// container PerNuts3:= for_each_ne(selN3/ZoneId, 'genPerN3('+string(id(selN3))+')')" {
+		// container storeall_container {parameter<bool> storeall:= True", ExplicitSuppliers = "= AsList(selN3/ZoneId+'/Store', ';')";}
+		// container store_binaged {parameter<bool> storebinaged:= True", ExplicitSuppliers = "= AsList(selN3/ZoneId+'/Store', ';')";}
+		// container store_redo200804 {parameter<bool> redo:= True", ExplicitSuppliers = "= AsList(selN3/redo200804 ? selN3/ZoneId+'/Store' : '', ';')";}
+	// }
+	
+	// Container DoMake1kmRasters
+	// {
+		// unit<dpoint> CoordSys:= LambertEA";
+		// container Load100mRasters: 		expr = for_each_ne(SexAgeClasses/name, 'Templates/loadDataFile_float32tiff_sedac('+quote('%LocalDataProjDir%/EU_results/'+SexAgeClasses/name+'_fitted')+', Geography/Lambert100mGrid)')";
+		// container Convertto1kmRasters:	expr = for_each_nedva(SexAgeClasses/name, 'sum(Load100mRasters/'+SexAgeClasses/name+'/inFile/ReadData, Geography/Lambert100mGrid/m1000_rel)', Geography/LambertEA/m1000, float32, '%LocalDataProjDir%/EU_results/1km/'+SexAgeClasses/name+'_fitted.tif')" {
+			// attribute<float32> Total (Geography/LambertEA/m1000):= = 'add('+AsItemList(SexAgeClasses/name)+')'", StorageName = "%LocalDataProjDir%/EU_results/1km/total_fitted.tif";}
+		// container BroadAgeClassPercentages:= for_each_nedva(BroadClasses/Label, 'add('+AsItemList('Convertto1kmRasters/'+SexAgeClasses/name, SexAgeClasses/broadfrom)+') / Convertto1kmRasters/Total', Geography/LambertEA/m1000, float32, '%LocalDataProjDir%/EU_results/1km/perc_'+BroadClasses/Label+'_fitted.tif')";
+	// }
+	
+	
+	// attribute<National_boundaries> countryid (Geography/Lambert100mGrid):= poly2grid(National_boundaries/Geometry, Geography/Lambert100mGrid)";
+	// Container CheckPerCountry:= for_each_nedv(SexAgeClasses/name, 'sum(Sedac_rasters/DoMake1kmRasters/Load100mRasters/'+SexAgeClasses/name+'/inFile/ReadData, countryid)', National_boundaries, float32)";
+	
+	// container Mozaiks:= for_each_ne(SexAgeClasses/name, 'doMozaikResults('+string(id(SexAgeClasses))+')')" {
+		
+		// parameter<bool> StoreAll:= True", ExplicitSuppliers = "= AsList(SexAgeClasses/name + '/merged', ';')";
+		
+		
+		// attribute<uint16> n3grid (Geography/Lambert100mGrid):= uint16(poly2grid(selN3/Geometry, Geography/Lambert100mGrid))";
+		
+	// }
+	
+	// Template doMozaikResults {
+		// parameter<SexAgeClasses> inAgeClass;
+		
+		// attribute<float32> merged (Geography/Lambert100mGrid): 
+			//= = 'raster_merge(n3grid, float32, '+AsItemList('PerNuts3/'+selN3/ZoneId+'/Grids_ReadOnly/'+SexAgeClasses/name[inAgeClass]+'/inFile/GridData')+')'", 
+			// StorageName = "= '%LocalDataProjDir%/EU_results/'+AgeClasses/Label[inAgeClass]+'_fitted.tif'";
+	// }
+	
+	
