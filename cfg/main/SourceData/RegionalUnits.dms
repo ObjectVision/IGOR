@@ -25,6 +25,7 @@ container RegionalUnits : Using = "Geography;"
 	unit<uint32> LAU := select_with_attr_by_cond(impl/LAU/LAU_RG_01M_2021_3035_gpkg, IsDefined(impl/LAU/LAU_RG_01M_2021_3035_gpkg/geometry))
 	{
 		attribute<.> per_domain (domain) := poly2grid(geometry, domain);
+		attribute<float32> count_cel_in_r := float32(pcount(per_domain));
 	}
 	unit<uint32> NUTS3 := select_with_attr_by_cond(impl/NUTS/NUTS_RG_01M_2021_3035_gpkg, impl/NUTS/NUTS_RG_01M_2021_3035_gpkg/LEVL_CODE == 3w);
 	

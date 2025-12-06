@@ -1,4 +1,4 @@
-container IGOR : IntegrityCheck = "GeoDMSVersion() >= 18.0000" //oa .parquet files
+container IGOR : IntegrityCheck = "GeoDMSVersion() >= 18.0101" // format 17.1.2 -> 17.0102; oa voor ReadLines update
 {
 	/* 
 		Population age disaggregation method used to break down LUISA population base map into population fractions. 

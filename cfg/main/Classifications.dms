@@ -2,22 +2,53 @@ container Classifications: Using = "Units", KeepData = "True"
 {
 	unit<uint32> SexAgeClasses := combine(Gender/woT, AgeClasses)
 	{
-		attribute<string> Gender_name    := Gender/woT/label[first_rel];
-		attribute<string> AgeClass_name  := AgeClasses/label[second_rel];
+		attribute<Gender/wot>           Sex_rel                := first_rel;
+		attribute<AgeClasses>           AgeClasses_rel         := second_rel;
+		attribute<string>               Gender_name            := Gender/woT/label[first_rel];
+		attribute<string>               AgeClass_name          := AgeClasses/label[second_rel];
+		attribute<bool>                 IsOver65               := AgeClasses/IsOver65[second_rel];
+		attribute<uint32>               from                   := AgeClasses/from[second_rel];
+		// attribute<SexBroadAgeClasses>   broadfrom              := classify(from, SexBroadAgeClasses/from), descr = "link with broad age classes";
+		attribute<string>               name                   := Gender_name + '_' + AgeClass_name;
+		attribute<string>               label                  := name;
 		
-		attribute<string> name := Gender_name + '_' + AgeClass_name;
-		attribute<string> label := name;
+		attribute<BroadClasses>         BroadClasses_rel       := SexBroadAgeClasses_rel -> second_rel;
+		
+		attribute<SexBroadAgeClasses>   SexBroadAgeClasses_rel := switch(
+																	 case(from < 15 && first_rel == Gender/woT/v/M, SexBroadAgeClasses/v/M_LT15)
+																	,case(from < 15 && first_rel == Gender/woT/v/F, SexBroadAgeClasses/v/F_LT15)
+																	,case(from >= 15 && from < 65 && first_rel == Gender/woT/v/M, SexBroadAgeClasses/v/M_15_64)
+																	,case(from >= 15 && from < 65 && first_rel == Gender/woT/v/F, SexBroadAgeClasses/v/F_15_64)
+																	,case(from >= 65 && first_rel == Gender/woT/v/M, SexBroadAgeClasses/v/M_GE65)
+																	,case(from >= 65 && first_rel == Gender/woT/v/F, SexBroadAgeClasses/v/F_GE65)
+																	,null_u
+																);
 		
 		container V := for_each_nedv(name, String(ID(.))+'[..]', void, .);
+		
+		unit<uint32> F := select_with_org_rel(first_rel == Gender/WoT/v/F)
+		{
+			attribute<string> name := org_rel -> name;
+		}
+		unit<uint32> M := select_with_org_rel(first_rel == Gender/WoT/v/M)
+		{
+			attribute<string> name := org_rel -> name;
+		}
+		// unit<uint32> LT15 := select_with_org_rel(SexBroadAgeClasses_rel == Gender/WoT/v/M)
+		// {
+			// attribute<string> name := org_rel -> name;
+		// }
 	}
 
 	unit<uint32> SexBroadAgeClasses := combine(Gender/woT, BroadClasses)
 	{
 		attribute<string> Gender_name    := Gender/woT/label[first_rel];
 		attribute<string> AgeClass_name  := BroadClasses/label[second_rel];
+		attribute<bool>   IsOver65       := BroadClasses/IsOver65[second_rel];
+		attribute<uint32> from           := BroadClasses/from[second_rel];
 		
-		attribute<string> name := Gender_name + '_' + AgeClass_name;
-		attribute<string> label := name;
+		attribute<string> name           := Gender_name + '_' + AgeClass_name;
+		attribute<string> label          := name;
 		
 		container V := for_each_nedv(name, String(ID(.))+'[..]', void, .);
 	}
@@ -48,6 +79,8 @@ container Classifications: Using = "Units", KeepData = "True"
 		attribute<float32>        Urban_att                                   : [1,1,2,2,2,2,1.15720158759832,1,1,2,1,1,1,1,1,1.7283296818342,1,1], descr = "attractiveness of degurba = urban, rescaled from net migration rates";
 		attribute<float32>        Intermediate_att                            : [1.0496122328333,1.49006881785662,1.64853875851297,1.69647072706806,1.41543240031316,1.5135732132799,1,2,1.62875866921155,1.41455307785412,1.12129970198168,1.78787710238876,1.6373127694263,1.47687937324297,1.50540487715422,2,1.67417270498771,1.57808630632242], descr = "attractiveness of degurba = intermediate, rescaled from net migration rates";
 		attribute<float32>        Rural_att                                   : [2,2,1,1,1,1,2,1.90356929938043,2,1,2,2,2,2,2,1,2,2], descr = "attractiveness of degurba = rural, rescaled from net migration rates";
+	
+		attribute<bool>           IsOver65 := from >= 65;
 	}
 	
 	unit<uint32> BroadClasses : NrOfRows = 3
@@ -57,9 +90,12 @@ container Classifications: Using = "Units", KeepData = "True"
 		attribute<uint32> from        : [0, 15, 65], descr  = "start of age class";
 		attribute<uint32> to          := id(.) < max(id(.)) ? from[id(.)+1] : 150, descr = "end of age class";
 		// attribute<string> LabelText   := switch(case(id(.) = 0, 'Under15'), case(id(.) = max(id(.)), 'Over85'), 'y'+string(from)+'t'+string(to-1)), DialogType = "LabelText", descr = "descriptive name of age class";
-		attribute<string> name        := name;
+		attribute<string> name        := AsItemName(label);
 		attribute<string> Label       := switch(case(id(.) = 0, 'LT15'), case(id(.) = max(id(.)), 'GE65'), ''+string(from)+'_'+string(to-1)), descr = "descriptive name of age class";
 		attribute<string> AgeClassAdd := AsItemList(Ageclasses/Label, AgeClasses/broadfrom), descr = "rule governing which narrow age classes need to be added to constitute a broad age class";
+		attribute<bool>   IsOver65    := from >= 65;
+		
+		container V := for_each_nedv(name, String(ID(.))+'[..]', void, .);
 	}
 	
 	unit<uint32> EurostatClaims : NrOfRows = 5
@@ -74,8 +110,11 @@ container Classifications: Using = "Units", KeepData = "True"
 	, descr = "Sex classes" 
 	{
 		attribute<string> Label : ['F','M','T'], descr = "descriptive name of gender class";
-		
-		unit<uint32> woT := select_with_attr_by_cond(., label != 'T');
+		attribute<string> name := label;
+		unit<uint32> woT := select_with_attr_by_cond(., label != 'T')
+		{
+			container V := for_each_nedv(label, String(ID(.))+'[..]', void, .);
+		}
 	}
 	unit<uint8>  DegUrba_lv1 : NrOfRows = 3, descr = "Degree of urbanization level 1 classes" 
 	{

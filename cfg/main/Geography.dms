@@ -82,6 +82,8 @@ container Geography : using = "units"
 	
 	unit<ipoint> domain := TiledUnit(StudyAreaTile/LB, StudyAreaTile/UB)
 	{
-		attribute<LambertEA>        geometry       := id(.)[LambertEA] + point_xy(0.5 * 1000d,0.5 * 1000d, LambertEA), LazyCalculated = "True", Dialogdata = "LambertEA";
+		attribute<LambertEA>                    geometry       := id(.)[LambertEA] + point_xy(0.5 * 1000d,0.5 * 1000d, LambertEA), LazyCalculated = "True", Dialogdata = "LambertEA";
+		attribute<SourceData/RegionalUnits/LAU> LAU_rel        := SourceData/RegionalUnits/LAU/per_domain;
+		attribute<SourceData/RegionalUnits/LAU> r_rel        :=LAU_rel;
 	}
 }

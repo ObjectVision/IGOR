@@ -2,47 +2,185 @@ Container Reference_data
 : Using = "SourceData/RegionalUnits;SourceData"
 , Descr = "Procedures to generate reference 2011 base maps per narrow age class, with LAU2 census data, SEDAC grids, and additional local data for NL, SK and SI" 
 {
+	parameter<uint8>    NumberOfIterations        := 10b,           Descr = "Number of iterations for balancing assignment.";
+	unit<uint32>        Sex                       := /Classifications/Gender/woT;
+	
 	attribute<float32>  Ardeco           (domain) := float32(Population/Ardeco/data);
-	attribute<float32>  Ardeco_perLAU       (LAU) := sum(Ardeco, LAU/per_domain);
-	attribute<float32>  ESTAT_Male       (domain) := float32(Population/ESTAT_Male/data);
-	attribute<float32>  ESTAT_Female     (domain) := float32(Population/ESTAT_Female/data);
+	// attribute<float32>  Ardeco_perLAU       (LAU) := sum(Ardeco, LAU/per_domain);
+	attribute<float32>  ESTAT_M          (domain) := float32(Population/ESTAT_Male/data);
+	attribute<float32>  ESTAT_F          (domain) := float32(Population/ESTAT_Female/data);
 	attribute<float32>  ESTAT_LT15       (domain) := float32(Population/ESTAT_LT15/data);
 	attribute<float32>  ESTAT_15_64      (domain) := float32(Population/ESTAT_15_64/data);
 	attribute<float32>  ESTAT_GE65       (domain) := float32(Population/ESTAT_GE65/data);
 	
-	attribute<float32>  ESTAT_Total_Sex  (domain) := ESTAT_Male + ESTAT_Female;
+	attribute<float32>  ESTAT_Total_Sex  (domain) := ESTAT_M + ESTAT_F;
 	attribute<float32>  ESTAT_Total_Age  (domain) := ESTAT_LT15 + ESTAT_15_64 + ESTAT_GE65;
 
-	attribute<float32>  Share_Male       (domain) := ESTAT_Male   / ESTAT_Total_Sex;
-	attribute<float32>  Share_Female     (domain) := 1f - Share_Male;
+	attribute<float32>  Share_M          (domain) := MakeDefined(ESTAT_M   / ESTAT_Total_Sex, 1f);
+	attribute<float32>  Share_F          (domain) := 1f - Share_M;
 	attribute<float32>  Share_LT15       (domain) := ESTAT_LT15   / ESTAT_Total_Age;
 	attribute<float32>  Share_15_64      (domain) := ESTAT_15_64  / ESTAT_Total_Age;
 	attribute<float32>  Share_GE65       (domain) := ESTAT_GE65   / ESTAT_Total_Age;
 	
-	attribute<float32>  Share_M_LT15     (domain) := Share_Male * Share_LT15;
-	attribute<float32>  Share_M_15_64    (domain) := Share_Male * Share_15_64;
-	attribute<float32>  Share_M_GE65     (domain) := Share_Male * Share_GE65;
 	
-	attribute<float32>  Share_F_LT15     (domain) := Share_Female * Share_LT15;
-	attribute<float32>  Share_F_15_64    (domain) := Share_Female * Share_15_64;
-	attribute<float32>  Share_F_GE65     (domain) := Share_Female * Share_GE65;
+	unit<uint32>        r                      := LAU
+	{
+		attribute<.> per_i (i) := per_domain;
+	}
+	unit<ipoint>        i                      := domain;
+	attribute<float32>  P_i                (i) := Ardeco;
 	
-	attribute<float32>  CheckSharesM     (domain) := Share_M_LT15 + Share_M_15_64 + Share_M_GE65;
-	attribute<float32>  CheckSharesF     (domain) := Share_F_LT15 + Share_F_15_64 + Share_F_GE65;
-	attribute<float32>  CheckSharesT     (domain) := CheckSharesM + CheckSharesF;
-	
-	
-	container Population_perSexAgeClasses_perLAU := 
+	container E_ib := 
 		for_each_nedv(
-			SexAgeClasses/name
-			, 'sum(Population/AGEGROUP5_SEX_perLAU/result/SexAgeClass_rel == SexAgeClasses/v/'+SexAgeClasses/name+' ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel)'
-			, LAU
+			BroadClasses/name
+			, 'Share_'+BroadClasses/label
+			, i
 			, float32
 		)
 	{
-		attribute<float32> Total (LAU):= = 'add('+AsItemList(SexAgeClasses/name)+')';
+		attribute<float32>  Total  (domain) := = 'add('+AsItemList(BroadClasses/name)+')';
 	}
 		
+	container E_is := 
+		for_each_nedv(
+			Sex/name
+			, 'Share_'+Sex/name
+			, i
+			, float32
+		)
+	{
+		attribute<float32>  Total  (domain) := = 'add('+AsItemList(Sex/name)+')';
+	}
+		
+	container Q_asr := 
+		for_each_nedv(
+			SexAgeClasses/name
+			, 'sum(Population/AGEGROUP5_SEX_perLAU/result/SexAgeClass_rel == SexAgeClasses/v/'+SexAgeClasses/name+' ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel)'
+			, r
+			, float32
+		)
+	{
+		attribute<float32>  Total  (r) := = 'add('+AsItemList(SexAgeClasses/name)+')';
+	}
+	
+	container Q_s_shares := 
+		for_each_nedv(
+			Sex/name
+			, '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/first_rel)+') / Q_asr/total'
+			, r
+			, float32
+		);
+	
+	container Q_b_shares := 
+		for_each_nedv(
+			BroadClasses/name
+			, '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/BroadClasses_rel)+') / Q_asr/total'
+			, r
+			, float32
+		);
+	
+	
+	
+	container Iters :=
+		for_each_ne(
+			Iter/name
+			,'Iter_T('+quote(Iter/PrevName)+')'
+		), Descr = ""
+	{
+		container Iter_0
+		{
+			container B_asr := 
+				for_each_nedv(
+					SexAgeClasses/name
+					, 'const(1f, r)'
+					, r
+					, float32
+				);
+		}
+		
+		container LastIter := =last(Iter/name)
+		{
+			container X_asr := 
+				for_each_nedv(
+					SexAgeClasses/name
+					, 'sum(X_asi/'+SexAgeClasses/name+', i/r_rel)'
+					, r
+					, float32
+				);
+				
+			container Diff_X_asr_Q_asr := 
+				for_each_nedv(
+					SexAgeClasses/name
+					, 'X_asr/'+SexAgeClasses/name+' - Q_asr/'+SexAgeClasses/name+ '* (sum(x_total, i/r_rel) / q_asr/Total)'
+					, r
+					, float32
+				);
+				
+			attribute<float32> Diff_X_i_P_i (i) := x_total - P_i;
+				
+				
+		}
+	}
+	
+	unit<UInt8> Iter := cat_range(1b, NumberOfIterations + 1b)
+	{
+		attribute<String> name        := 'Iter_'+string(id(.));
+		attribute<Bool>   IsFirstIter := id(.) == 1b;
+		attribute<String> PrevName    := IsFirstIter ? 'Iter_0' : name[id(.) - min_elem( id(.), 1b)];
+		attribute<String> Label       := name;
+	}
+
+	Template Iter_T
+	{
+		parameter<string> PrevIterName;
+		container PrevIter := =PrevIterName;
+		///
+		
+		attribute<float32> A_i (i) := ='P_i / ('+AsList('E_is/'+SexAgeClasses/Sex_rel -> name+' * E_ib/'+SexAgeClasses/BroadClasses_rel -> name+' * PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]', '+')+')';
+		
+		container X_asi := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, 'E_is/'+SexAgeClasses/Sex_rel -> name+' * E_ib/'+SexAgeClasses/BroadClasses_rel -> name+' * A_i * PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]'
+				, i
+				, float32
+			); 
+		attribute<float32> x_total(i) := =AsList('X_asi/'+SexAgeClasses/name, '+');
+		
+		container B_asr := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, 'PrevIter/B_asr/'+SexAgeClasses/name+' * Q_asr/'+SexAgeClasses/name+' / sum(X_asi/'+SexAgeClasses/name+', i/r_rel)'
+				, r
+				, float32
+			);
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+/*		
 	
 	/// BZ moet LAU worden.
 	/// local raster is nu weg, dus gewoon naar 1km grid verwijzen.
@@ -54,7 +192,7 @@ Container Reference_data
 	// {
 		// attribute<selN3> sN3id: = BZ/sN3id[org_rel]";
 		// attribute<Geography/LambertEA> Geometry (poly):= BZ/Geometry[org_rel]";
-		// attribute<float32> ENACT_Pop: = sum(ENACT/ReadData, createLocalRaster/N3Raster/BZrel)";
+		// attribute<float32> ENACT_Pop: = sum(ENACT/ReadData, domain/BZrel)";
 	// }
 	
 	// container in_regional_totals := 
@@ -68,18 +206,6 @@ Container Reference_data
 		// attribute<float32> total (relBZ):= = 'add('+AsItemList(SexAgeClasses/Label)+')';
 	// }
 	
-	container Regional_Shares := 
-		for_each_nedv(
-			SexAgeClasses/name
-			, 'Population_perSexAgeClasses_perLAU/total > 0f 
-					? Population_perSexAgeClasses_perLAU/'+SexAgeClasses/name+' / Population_perSexAgeClasses_perLAU/total 
-					: float32(SelN3/PopData/'+SexAgeClasses/name+') / float32(SelN3/PopData/total)' //@CHRIS, waarom dit?
-			, LAU
-			, float32
-		)
-	{
-		// attribute<float32> y65t84 (relBZ):= = 'add('+AsItemList(id(SexAgeClasses)>12 ? SexAgeClasses/name : '') +')';
-	}
 	
 	container Regional_totals := 
 		for_each_nedv(
@@ -94,28 +220,43 @@ Container Reference_data
 		attribute<float32> total (LAU):= = 'add('+AsItemList(SexAgeClasses/name)+')';
 	}
 	
+	container Regional_totals_broad := 
+		for_each_nedv(
+			SexAgeClasses/name
+			, 'add('+AsItemList(id(SexAgeClasses/SexBroadAgeClasses_rel) == id(SexBroadAgeClasses)
+						? SexAgeClasses/name
+						: ''
+					)+'
+				)'
+			, LAU
+			, float32
+		)
+	{
+		attribute<float32> total (LAU):= = 'add('+AsItemList(SexAgeClasses/name)+')';
+	}
+	
 	
 	// container inrasters:= 
 		// for_each_ne(
 			// SexAgeClasses/name
-			// , 'Templates/loadDataFile_float32tiff_sedac('+quote('%SourceDatadir%/Popage_disagg/data/sedac_rasters/'+AgeFileNames+'_EU_100m')+', createLocalRaster/N3Raster)'
+			// , 'Templates/loadDataFile_float32tiff_sedac('+quote('%SourceDatadir%/Popage_disagg/data/sedac_rasters/'+AgeFileNames+'_EU_100m')+', domain)'
 		// );
 		
 	// container agerasters := 
 		// for_each_nedv(
 			// SexAgeClasses/name
 			// , 'inrasters/'+SexAgeClasses/name+'/inFile/ReadData'
-			// , createLocalRaster/N3Raster
+			// , domain
 			// , float32)
 	// {
-		// attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+AsItemList(SexAgeClasses/name)+')';
+		// attribute<float32> total (domain):= = 'add('+AsItemList(SexAgeClasses/name)+')';
 	// }
 	
 	// container perc_sedacrasters := 
 		// for_each_nedv(
 			// SexAgeClasses/name
 			// , 'MakeDefined(agerasters/'+SexAgeClasses/name+' / agerasters/total, sum(agerasters/'+SexAgeClasses/name+') / sum(agerasters/total))'
-			// , createLocalRaster/N3Raster
+			// , domain
 			// , float32
 		// );
 		
@@ -130,19 +271,19 @@ Container Reference_data
 	// container localrasters := 
 		// for_each_nedv(
 			// BroadClasses/Label
-			// , 'float32(Local_boundaries/PopData/'+BroadClasses/Label+'[createLocalRaster/N3Raster/lb_id])'
-			// , createLocalRaster/N3Raster
+			// , 'float32(Local_boundaries/PopData/'+BroadClasses/Label+'[domain/lb_id])'
+			// , domain
 			// , float32
 		// )
 	// {
-		// attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+AsItemList(BroadClasses/Label)+')';
+		// attribute<float32> total (domain):= = 'add('+AsItemList(BroadClasses/Label)+')';
 	// }
 	
 	// container perc_lrast := 
 		// for_each_nedv(
 			// BroadClasses/Label
 			// , 'localrasters/'+BroadClasses/Label+' / localrasters/total'
-			// , createLocalRaster/N3Raster
+			// , domain
 			// , float32
 		// );
 		
@@ -150,97 +291,118 @@ Container Reference_data
 		// for_each_nedv(
 			// BroadClasses/Label
 			// , 'MakeDefined(perc_lrast/'+BroadClasses/Label+' / perc_sedacrasters_broad/'+BroadClasses/Label+', 1f)'
-			// , createLocalRaster/N3Raster
+			// , domain
 			// , float32
 		// );
 		
+	// container adj_ESTATrasters0 := //fka adj_sedacrasters
+		// for_each_nedv(
+			// SexAgeClasses/name
+			// , 'Share_ESTAT_Broad/'+SexBroadAgeClasses/Label[SexAgeClasses/SexBroadAgeClasses_rel]
+			// , domain
+			// , float32
+		// );
+	
 	container adj_ESTATrasters := //fka adj_sedacrasters
 		for_each_nedv(
 			SexAgeClasses/name
-			, switch(
-				case(selN3/bin_agedclasses[inN3] && id(SexAgeClasses) > 12
-						, '(Share_ESTAT_Broad/y65t84 + Share_ESTAT_Broad/over85) 
-								* (1f / '+string(pcount(SexAgeClasses/broadfrom))[SexAgeClasses/broadfrom]+'f) 
-								* (regional_shares/'+BroadClasses/Label[SexAgeClasses/broadfrom]+' 
-								/ (regional_shares/y65t84 + regional_shares/over85))[createLocalRaster/N3Raster/BZrel]'
-					) 
-				,'perc_sedacrasters/'+SexAgeClasses/name+' * adjust_raster/'+BroadClasses/Label[SexAgeClasses/broadfrom]
-			)
-			, createLocalRaster/N3Raster
+			,'Share_ESTAT_Broad/'+SexBroadAgeClasses/Label[SexAgeClasses/SexBroadAgeClasses_rel]+'
+				* (1f / '+string(pcount(SexAgeClasses/SexBroadAgeClasses_rel))[SexAgeClasses/SexBroadAgeClasses_rel]+'f) 
+				* (regional_shares/'+SexAgeClasses/name+'
+				/ (regional_shares/y65t84 + regional_shares/over85))[domain/LAU_rel]'
+			, domain
 			, float32
 		)
 	{
-		attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+AsItemList(SexAgeClasses/name)+')';
+		attribute<float32> total (domain):= = 'add('+AsItemList(SexAgeClasses/name)+')';
 	}
 	
-	container adj_sedacrasters_x_ENACT := 
+	container adj_sedacrasters := 
+		for_each_nedv(
+			AgeClasses/LabelText
+			, selN3/bin_agedclasses[inN3] && id(AgeClasses) > 12
+				? '(perc_sedacrasters_broad/y65t84 + perc_sedacrasters_broad/over85) 
+					* (1f / '+string(pcount(AgeClasses/broadfrom))[AgeClasses/broadfrom]+'f) 
+					* (regional_shares/'+BroadClasses/LabelText[AgeClasses/broadfrom]+' 
+					/ (regional_shares/y65t84 + regional_shares/over85))[createLocalRaster/N3Raster/BZrel]'
+				: 'perc_sedacrasters/'+AgeClasses/LabelText+' * adjust_raster/'+BroadClasses/LabelText[AgeClasses/broadfrom]
+		, createLocalRaster/N3Raster
+		, float32)
+	{
+		attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+AsItemList(AgeClasses/LabelText)+')';
+	}
+	
+	container adj_ESTATraster_x_ARDECO := //fka adj_sedacrasters_x_ENACT
 		for_each_nedv(
 			SexAgeClasses/name
-			, 'adj_sedacrasters/'+SexAgeClasses/name+' * ENACT/inN3Data', createLocalRaster/N3Raster, float32)
+			, 'adj_ESTATrasters/'+SexAgeClasses/name+' * Ardeco_perLAU'
+			, domain
+			, float32
+		)
 	{
-		attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+AsItemList(SexAgeClasses/name)+')';
+		attribute<float32> total (domain):= = 'add('+AsItemList(SexAgeClasses/name)+')';
 	}
 	
 	container init 
 	{
-		attribute<float32> ENACT_vs_N3 (relBZ):= sum(adj_sedacrasters_x_ENACT/total, createLocalRaster/N3Raster/BZrel) / regional_totals/total;
+		attribute<float32> ARDECO_vs_LAU (LAU):= sum(adj_ESTATraster_x_ARDECO/total, domain/LAU_rel) / regional_totals/total; //fka ENACT_vs_N3
 		
-		container BZ_rescaled := 
+		container LAU_rescaled := //fka BZ_rescaled
 			for_each_nedv(
 				SexAgeClasses/name
-				, 'ENACT_vs_N3 * regional_totals/'+SexAgeClasses/name
-				, relBZ
+				, 'ARDECO_vs_LAU * regional_totals/'+SexAgeClasses/name
+				, LAU
 				, float32
 			);
 			
-		container BZ_agg := 
+		container LAU_agg := //fka BZ_agg
 			for_each_nedv(
 				SexAgeClasses/name
-				, 'sum(adj_sedacrasters_x_ENACT/'+SexAgeClasses/name+', createLocalRaster/N3Raster/BZrel)'
-				, relBZ
+				, 'sum(adj_ESTATraster_x_ARDECO/'+SexAgeClasses/name+', domain/LAU_rel)'
+				, LAU
 				, float32
 			)
 		{
-			attribute<float32> total (relBZ) := = 'add('+ AsItemList(SexAgeClasses/name) +')';
+			attribute<float32> total (LAU) := = 'add('+ AsItemList(SexAgeClasses/name) +')';
 		}
 		
-		container BZ_compare := 
+		container LAU_compare := //fka BZ_compare
 			for_each_nedv(
 				SexAgeClasses/name
-				, 'MakeDefined(BZ_rescaled/'+ SexAgeClasses/name +' / BZ_agg/'+ SexAgeClasses/name +', float32(1))'
-				, relBZ
+				, 'MakeDefined(LAU_rescaled/'+ SexAgeClasses/name +' / LAU_agg/'+ SexAgeClasses/name +', 1f)'
+				, LAU
 				, float32
 			)
 		{
-			attribute<float32> total (relBZ):= = 'add('+ AsItemList(SexAgeClasses/name) +')';
+			attribute<float32> total (LAU):= = 'add('+ AsItemList(SexAgeClasses/name) +')';
 		}
 		
-		container Grid_rescaled_BZ := 
+		container Grid_rescaled_LAU := //fka Grid_rescaled_BZ
 			for_each_nedv(
 				SexAgeClasses/name
-				,'adj_sedacrasters_x_ENACT/'+SexAgeClasses/name+' * BZ_compare/'+ SexAgeClasses/name +'[createLocalRaster/N3Raster/BZrel]'
-				, createLocalRaster/N3Raster
+				,'adj_ESTATraster_x_ARDECO/'+SexAgeClasses/name+' * LAU_compare/'+ SexAgeClasses/name +'[domain/LAU_rel]'
+				, domain
 				, float32
 			)
 		{
-			attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+ AsItemList(SexAgeClasses/name) +')';
+			attribute<float32> total (domain):= = 'add('+ AsItemList(SexAgeClasses/name) +')';
 		}
 	}
 	
-	container Fit:= Loop(Iterate_fitting_procedure, uint16(20));
+	container Fit:= Loop(Iterate_fitting_procedure_T, uint16(20));
 	
 	parameter<bool> Store := True, ExplicitSuppliers = "storeGrids;storeMAPEs";
 	
 	container storeGrids:= 
 		for_each_nedva(
 			SexAgeClasses/name
-			, 'Fit/LastIter/NextValue/Grid_rescaled_BZ/'+SexAgeClasses/name
-			, createLocalRaster/N3Raster
+			, 'Fit/LastIter/NextValue/Grid_rescaled_LAU/'+SexAgeClasses/name
+			, domain
 			, float32
 			, '%LocalDataProjDir%/ifp/'+selN3/ZoneId[inN3]+'/'+SexAgeClasses/name+'_fitted.tif'
 		)
 	{
-		attribute<float32> total (createLocalRaster/N3Raster):= = 'add('+AsItemList(SexAgeClasses/name)+')', StorageName = "= '%LocalDataProjDir%/ifp/'+selN3/ZoneId[inN3]+'/total_fitted.tif'";
+		attribute<float32> total (domain):= = 'add('+AsItemList(SexAgeClasses/name)+')', StorageName = "= '%LocalDataProjDir%/ifp/'+selN3/ZoneId[inN3]+'/total_fitted.tif'";
 	}
 	
 	container storeMAPEs := Templates/TableComposer_uint32_params(Fit/LastIter/MAPEs, '%LocalDataProjDir%/ifp/MAPE/'+selN3/ZoneId[inN3]+'.csv', 'ENACT;'+AsList(SexAgeClasses/name,';'));
@@ -253,37 +415,38 @@ Container Reference_data
 		
 	container MAPE_ReadOnly := Templates/TableChopper_params('%LocalDataProjDir%/ifp/MAPE/'+selN3/ZoneId[inN3]+'.csv');
 	
-	Template Iterate_fitting_procedure 
+	Template Iterate_fitting_procedure_T 
 	{
-		parameter<uint32> NrIter;
+		parameter<uint16> NrIter;
+		///
 		container CurrValue
 		{
-			container BZ_rescaled      := init/BZ_rescaled;
-			container Grid_rescaled_BZ := init/Grid_rescaled_BZ;
+			container LAU_rescaled       := init/LAU_rescaled;
+			container Grid_rescaled_LAU  := init/Grid_rescaled_LAU;
 		}
 		container NextValue
 		{
-			container BZ_rescaled:= CurrValue/BZ_rescaled;
+			container LAU_rescaled := CurrValue/LAU_rescaled;
 			
-			container Local_ENACT_compare 
+			container Local_ARDECO_compare //fka Local_ENACT_compare
 			{
-				attribute<float32> d      (createLocalRaster/N3Raster) := MakeDefined(ENACT/inN3Data / CurrValue/Grid_rescaled_BZ/total, 1f);
-				attribute<float32> absdif (createLocalRaster/N3Raster) := CurrValue/Grid_rescaled_BZ/total - ENACT/inN3Data;
-				attribute<float32> reldif (createLocalRaster/N3Raster) := absdif / ENACT/inN3Data;
+				attribute<float32> d      (domain) := MakeDefined(ENACT/inN3Data / CurrValue/Grid_rescaled_LAU/total, 1f);
+				attribute<float32> absdif (domain) := CurrValue/Grid_rescaled_LAU/total - ENACT/inN3Data;
+				attribute<float32> reldif (domain) := absdif / ENACT/inN3Data;
 			}
 			
-			container Local_rescaled_ENACT := 
+			container Local_rescaled_ARDECO := //fka Local_rescaled_ENACT
 				for_each_nedv(
 					SexAgeClasses/name
-					, 'CurrValue/Grid_rescaled_BZ/'+SexAgeClasses/name+' * Local_ENACT_compare/d'
-					, createLocalRaster/N3Raster
+					, 'CurrValue/Grid_rescaled_LAU/'+SexAgeClasses/name+' * Local_ARDECO_compare/d'
+					, domain
 					, float32
 				);
 				
-			container BZ_agg := 
+			container LAU_agg := //fka BZ_agg
 				for_each_nedv(
 					SexAgeClasses/name
-					, 'sum(Local_rescaled_ENACT/'+SexAgeClasses/name+', createLocalRaster/N3Raster/BZrel)'
+					, 'sum(Local_rescaled_ARDECO/'+SexAgeClasses/name+', domain/LAU_rel)'
 					, relBZ
 					, float32
 				)
@@ -291,10 +454,10 @@ Container Reference_data
 				attribute<float32> total (relBZ) := = 'add('+ AsItemList(SexAgeClasses/name) +')';
 			}
 			
-			container BZ_compare := 
+			container LAU_compare := //fka BZ_compare
 				for_each_nedv(
 					SexAgeClasses/name
-					, 'MakeDefined(CurrValue/BZ_rescaled/'+ SexAgeClasses/name +' / BZ_agg/'+ SexAgeClasses/name +', float32(1))'
+					, 'MakeDefined(CurrValue/BZ_rescaled/'+ SexAgeClasses/name +' / LAU_agg/'+ SexAgeClasses/name +', float32(1))'
 					, relBZ
 					, float32
 				)
@@ -302,30 +465,30 @@ Container Reference_data
 				attribute<float32> total (relBZ) := = 'add('+ AsItemList(SexAgeClasses/name) +')';
 			}
 			
-			container Grid_rescaled_BZ := 
+			container Grid_rescaled_LAU := //fka Grid_rescaled_BZ
 				for_each_nedv(
 					SexAgeClasses/name
-					, 'Local_rescaled_ENACT/'+SexAgeClasses/name+' * BZ_compare/'+ SexAgeClasses/name +'[createLocalRaster/N3Raster/BZrel]'
-					, createLocalRaster/N3Raster
+					, 'Local_rescaled_ARDECO/'+SexAgeClasses/name+' * LAU_compare/'+ SexAgeClasses/name +'[domain/LAU_rel]'
+					, domain
 					, float32
 				)
 			{
-				attribute<float32> total (createLocalRaster/N3Raster) := = 'add('+ AsItemList(SexAgeClasses/name) +')';
+				attribute<float32> total (domain) := = 'add('+ AsItemList(SexAgeClasses/name) +')';
 			}
 		}
 		
 		container MAPEs := 
 			for_each_nedv(
 				SexAgeClasses/name
-				, 'mean(abs((NextValue/BZ_agg/'+SexAgeClasses/name+' - regional_totals/'+ SexAgeClasses/name +') / regional_totals/'+ SexAgeClasses/name +'))'
+				, 'mean(abs((NextValue/LAU_agg/'+SexAgeClasses/name+' - regional_totals/'+ SexAgeClasses/name +') / regional_totals/'+ SexAgeClasses/name +'))'
 				,void
 				, float32
 			)
 		{
-			parameter<float32> ENACT:= mean(abs(nextValue/Local_ENACT_compare/reldif));
+			parameter<float32> ARDECO:= mean(abs(nextValue/Local_ARDECO_compare/reldif));
 		}
 	}
-
+*/
 
 
 	// #include<muni_estat_data.dms>
