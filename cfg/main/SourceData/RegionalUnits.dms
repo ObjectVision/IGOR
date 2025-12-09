@@ -22,11 +22,22 @@ container RegionalUnits : Using = "Geography;"
 		, DialogData = "LambertEA";
 	}
 	
-	unit<uint32> LAU := select_with_attr_by_cond(impl/LAU/LAU_RG_01M_2021_3035_gpkg, IsDefined(impl/LAU/LAU_RG_01M_2021_3035_gpkg/geometry))
+	unit<uint32> LAU_org := select_with_attr_by_cond(impl/LAU/LAU_RG_01M_2021_3035_gpkg, IsDefined(impl/LAU/LAU_RG_01M_2021_3035_gpkg/geometry))
 	{
-		attribute<.> per_domain (domain) := poly2grid(geometry, domain);
-		attribute<float32> count_cel_in_r := float32(pcount(per_domain));
+		attribute<.>       per_domain (domain) := poly2grid(geometry, domain);
+		attribute<float32> count_cel_in_r      := float32(pcount(per_domain));
+		attribute<bool>    IsStudyArea         := IsDefined(point_in_polygon(centroid_or_mid(geometry), Country/subset/geometry_BB[LambertEA]));
+		
+		unit<uint32> StudyArea := select_with_org_rel(IsStudyArea)
+		{
+			attribute<LambertEA>   geometry     (poly) := ../geometry[org_rel];
+			attribute<.>           per_domain (domain) := poly2grid(geometry, domain);
+			attribute<string>      GISCO_ID            := ../GISCO_ID[org_rel];
+		}
 	}
+	
+	unit<uint32> LAU := =ModelParameters/Use_Country_selection ? 'LAU_org/StudyArea' : 'LAU_org';
+	
 	unit<uint32> NUTS3 := select_with_attr_by_cond(impl/NUTS/NUTS_RG_01M_2021_3035_gpkg, impl/NUTS/NUTS_RG_01M_2021_3035_gpkg/LEVL_CODE == 3w);
 	
 	unit<uint32> Country := select_with_attr_by_cond(impl/NUTS/NUTS_RG_01M_2021_3035_gpkg, impl/NUTS/NUTS_RG_01M_2021_3035_gpkg/LEVL_CODE == 0w)
