@@ -115,7 +115,7 @@ Container Reference_data
 					, float32
 				);
 				
-			attribute<float32> Diff_X_i_P_i (i) := X_asi/Total - P_i;
+			attribute<float32> Diff_X_i_P_i (i) := X_asi/Total - P_i, Descr = "difference between output summed pop per grid cell and input total pop.";
 			
 			attribute<float32>  MAPE (r) := 100f * (1f / count(X_asi/Total,  i/r_rel)[float32]) 
 													* sum( abs(P_i - X_asi/Total) / P_i,  i/r_rel), Descr = "Mean Absolute Percentage Error: a measure used to evaluate the accuracy of a forecasting model. It expresses the accuracy as a percentage. Interpretation: Lower MAPE: Indicates a better fitting model, as the errors are smaller in comparison to the actual values. Higher MAPE: Suggests a less accurate model, with larger errors relative to the actual values.";
@@ -136,7 +136,8 @@ Container Reference_data
 		container PrevIter := =PrevIterName;
 		///
 		
-		attribute<float32> A_i (i) := ='P_i / ('+AsList('E_is/'+SexAgeClasses/Sex_rel -> name+' * E_ib/'+SexAgeClasses/BroadClasses_rel -> name+' * PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]', '+')+')';
+		attribute<float32> A_i (i) := ='P_i / ('+AsList('E_is/'+SexAgeClasses/Sex_rel -> name+' * E_ib/'+SexAgeClasses/BroadClasses_rel -> name+' * PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]', '+')+')',
+		Descr="balancing factor, total population in cell i";
 		
 		container X_asi := 
 			for_each_nedv(
@@ -144,9 +145,10 @@ Container Reference_data
 				, 'E_is/'+SexAgeClasses/Sex_rel -> name+' * E_ib/'+SexAgeClasses/BroadClasses_rel -> name+' * A_i * PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]'
 				, i
 				, float32
-			)
+			), Descr="resulting population per SexAgeGroup in cell i (rebalanced by A_i from this iteration)"
 		{
-			attribute<float32> Total (i) := =AsList('X_asi/'+SexAgeClasses/name, '+');
+			attribute<float32> Total (i) := =AsList('X_asi/'+SexAgeClasses/name, '+'),
+				Descr="Sum of population per SexAgeGroup (rebalanced with A_i from this iteration); item not used in computations(?)";
 		}
 		
 		container B_asr := 
@@ -155,6 +157,6 @@ Container Reference_data
 				, 'PrevIter/B_asr/'+SexAgeClasses/name+' * Q_asr/'+SexAgeClasses/name+' / sum(X_asi/'+SexAgeClasses/name+', i/r_rel)'
 				, r
 				, float32
-			);
+			), Descr="Recalculated balancing factor SexAgeGroup in region r, used in next iteration";
 	}
 }
