@@ -21,6 +21,13 @@ Container Reference_data
 	attribute<float32>  Share_15_64      (domain) := ESTAT_15_64  / ESTAT_Total_Age;
 	attribute<float32>  Share_GE65       (domain) := ESTAT_GE65   / ESTAT_Total_Age;
 	
+	container Checks
+	{
+		attribute<float32>  P_r                 (r) := sum(P_i, i/r_rel);
+		attribute<float32>  Diff_Q_and_P        (r) := Q_asr/total -  P_r;
+		attribute<float32>  Diff_Q_and_P_ifany0 (r) := Q_asr/total == 0f || P_r == 0f ? Diff_Q_and_P : 0f;
+	}
+	
 	
 	unit<uint32>        r                      := LAU
 	{
@@ -94,7 +101,7 @@ Container Reference_data
 					, 'const(1f, r)'
 					, r
 					, float32
-				), Descr = "balancing factor SexAgeGroup in region r"
+				), Descr = "balancing factor SexAgeGroup in region r";
 		}
 		
 		container LastIter := =last(Iter/name)
@@ -143,12 +150,17 @@ Container Reference_data
 				, 'E_is/'+SexAgeClasses/Sex_rel -> name+' * E_ib/'+SexAgeClasses/BroadClasses_rel -> name+' * A_i * PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]'
 				, i
 				, float32
-			), Descr="resulting population per SexAgeGroup in cell i (rebalanced by A_i from this iteration)"
+			), Descr = "resulting population per SexAgeGroup in cell i (rebalanced by A_i from this iteration)"
 		{
 			attribute<float32> Total (i) := =AsList('X_asi/'+SexAgeClasses/name, '+'),
-				Descr="Sum of population per SexAgeGroup (rebalanced with A_i from this iteration); item not used in computations(?)";
+				Descr = "Sum of population per SexAgeGroup (rebalanced with A_i from this iteration); item not used in computations: debug purposes";
 		}
 		
+		//intuition:
+			// if X_asr > Q_asr -> B_asr smaller
+			// if X_asr < Q_asr -> B_asr larger
+			// if X_asr ~= 0 and Q_asr > 0 -> B_asr towards infinity
+			
 		container B_asr := 
 			for_each_nedv(
 				SexAgeClasses/name
