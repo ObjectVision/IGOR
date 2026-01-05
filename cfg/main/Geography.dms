@@ -11,6 +11,7 @@ container Geography : using = "units"
 	}
 	unit<dpoint> LambertEA              := ='LambertEA_'+ModelParameters/StudyArea;
 	unit<dpoint> LambertEA_Nederland    := range(LambertEA_base, /SourceData/RegionalUnits/Country/subset/BoundingBox/bottom_left,  /SourceData/RegionalUnits/Country/subset/BoundingBox/top_right) {parameter<LambertEA_base> geometry (polygon):= geos_union_polygon(SourceData/RegionalUnits/Country/subset/geometry_base);}
+	unit<dpoint> LambertEA_EU           := range(LambertEA_base, /SourceData/RegionalUnits/Country/subset/BoundingBox/bottom_left,  /SourceData/RegionalUnits/Country/subset/BoundingBox/top_right) {parameter<LambertEA_base> geometry (polygon):= geos_union_polygon(SourceData/RegionalUnits/Country/subset/geometry_base);}
 
 	unit<uint32> selection_polygon : nrofrows = 1, Using = "units"
 	{

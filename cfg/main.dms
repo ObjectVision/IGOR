@@ -13,8 +13,8 @@ container IGOR : IntegrityCheck = "GeoDMSVersion() >= 18.0101" // format 17.1.2 
 	{
 		parameter<string>   PopVersie                      := 'Ardeco'; 
 		parameter<string>   PopYear                        := '2021'; 
-		parameter<bool>     Use_Country_selection          := TRUE; 
-		parameter<string>   StudyArea                      := 'Nederland'; //in local language; Nederland EU
+		parameter<bool>     Use_Country_selection          := FALSE; 
+		parameter<string>   StudyArea                      := 'EU'; //in local language; Nederland EU
 	}
 	
 	#include<Units.dms>
@@ -22,7 +22,7 @@ container IGOR : IntegrityCheck = "GeoDMSVersion() >= 18.0101" // format 17.1.2 
 	#include<Geography.dms>
 	#include<SourceData.dms>
 	#include<Reference_data.dms>
-	#include<LUISA_sequence.dms>
+	// #include<LUISA_sequence.dms>
 	#include<Templates.dms>
 	
 	#include<ConfigSettings.dms>

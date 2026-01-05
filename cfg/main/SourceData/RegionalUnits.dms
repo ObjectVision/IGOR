@@ -20,6 +20,68 @@ container RegionalUnits : Using = "Geography;"
 		, StorageReadOnly = "True"
 		, SyncMode = "AllTables"
 		, DialogData = "LambertEA";
+		
+		
+		unit<uint32> Country 
+		: StorageName = "%IGOR_DataDir%/Regions/CNTR_RG_01M_2020_3035.shp"
+		, StorageType = "gdal.vect"
+		, StorageReadOnly = "true"
+		{
+			attribute<LambertEA> geometry (poly);
+			attribute<bool>      IsEU            := EU_STAT == 'T'; 
+			attribute<bool>      IsEFTA          := EFTA_STAT == 'T'; 
+			attribute<bool>      IsCC            := CC_STAT == 'T'; 
+			attribute<bool>      IsTerritory       := strcount(SVRG_UN, 'Territory') > 0; 
+			unit<uint32> Subset := select_with_attr_by_cond(.,(ModelParameters/Use_Country_selection ? name_engl == /ModelParameters/StudyArea : IsEu || IsEFTA))
+			{
+				attribute<LambertEA>    geometry_BB (poly, BoundingBox) := points2sequence(BoundingBox/point_set/point, BoundingBox/point_set/Sequence_rel, BoundingBox/point_set/ordinal);
+				
+				unit<UInt32> BoundingBox : NrOfRows = 1
+				{
+					parameter<LambertEA> bottom_left  := first(lower_bound(geometry));
+					parameter<LambertEA> top_right    := first(upper_bound(geometry));
+					parameter<LambertEA> top_left     := point_xy(Get_X(bottom_left),Get_Y(top_right), LambertEA);
+					parameter<LambertEA> bottom_right := point_xy(Get_X(top_right),Get_Y(bottom_left), LambertEA);
+					
+					unit<UInt32> point_set    : NrOfRows = 5
+					{
+						attribute<LambertEA> point        := union_data(., top_left, top_right, bottom_right, bottom_left, top_left);
+						attribute<..>        Sequence_rel := const(0, .);
+						attribute<.>         ordinal      := id(.);
+					}
+				}
+			}
+		}
+		
+		unit<uint32> Country_Split := geos_split_union_polygon(Country/geometry, id(Country))
+		{
+			attribute<LambertEA> geometry_lea (poly) := geometry[LambertEA];
+			attribute<LambertEA> centroid            := centroid_or_mid(geometry_lea);
+			attribute<bool>      IsEU                := Country/IsEU[part_rel];
+			attribute<bool>      IsEFTA              := Country/IsEFTA[part_rel];
+			attribute<bool>      IsTerritory         := Country/IsTerritory[part_rel];
+			attribute<bool>      IsWithinStudyArea   := IsDefined(point_in_polygon(centroid, geography/selection_polygon/geometry[LambertEA]));
+			attribute<string>    name                := Country/name_engl[part_rel];
+		}
+
+		unit<uint32> EUplus         := select_with_attr_by_cond(Country, (Country/IsEU || Country/IsEFTA) && !Country/IsTerritory);
+		
+		unit<uint32> Continental_EU_undissolved := select_with_org_rel((Country_Split/IsEU || Country_Split/IsEFTA) && !Country_Split/IsTerritory && Country_Split/IsWithinStudyArea)
+		{
+			attribute<LambertEA>      geometry        (poly) := Country_Split/geometry_lea[org_rel];
+			attribute<string>         name                   := Country_Split/name[org_rel];
+			attribute<Continental_EU> Continental_EU_rel     := rlookup(name, Continental_EU/values);
+			
+		}
+		
+		unit<uint8> Continental_EU := unique_uint8(Continental_EU_undissolved/name)
+		{
+			attribute<LambertEA>       geometry (poly) := geos_union_polygon(Continental_EU_undissolved/geometry, Continental_EU_undissolved/Continental_EU_rel);
+			attribute<string>          name            := values;
+			attribute<string>          label           := values;
+			attribute<Country/Subset>  Country_rel     := rlookup(name, Country/Subset/name_engl);
+			attribute<string>          country_id      := Country/Subset/CNTR_ID[Country_rel];
+		}
 	}
 	
 	unit<uint32> LAU_org := select_with_attr_by_cond(impl/LAU/LAU_RG_01M_2021_3035_gpkg, IsDefined(impl/LAU/LAU_RG_01M_2021_3035_gpkg/geometry))
@@ -27,8 +89,9 @@ container RegionalUnits : Using = "Geography;"
 		attribute<.>       per_domain (domain) := poly2grid(geometry, domain);
 		attribute<float32> count_cel_in_r      := float32(pcount(per_domain));
 		attribute<bool>    IsStudyArea         := IsDefined(point_in_polygon(centroid_or_mid(geometry), Country/subset/geometry_BB[LambertEA]));
+		attribute<bool>    IsContinentalEU     := IsDefined(point_in_polygon(centroid_or_mid(geometry), impl/Continental_EU/geometry));
 		
-		unit<uint32> StudyArea := select_with_org_rel(IsStudyArea)
+		unit<uint32> StudyArea := =ModelParameters/Use_Country_selection ? 'select_with_org_rel(IsStudyArea && IsContinentalEU)' : 'select_with_org_rel(IsContinentalEU)'
 		{
 			attribute<LambertEA>   geometry     (poly) := ../geometry[org_rel];
 			attribute<.>           per_domain (domain) := poly2grid(geometry, domain);
@@ -36,14 +99,15 @@ container RegionalUnits : Using = "Geography;"
 		}
 	}
 	
-	unit<uint32> LAU := =ModelParameters/Use_Country_selection ? 'LAU_org/StudyArea' : 'LAU_org';
+	// unit<uint32> LAU := =ModelParameters/Use_Country_selection ? 'LAU_org/StudyArea' : 'LAU_org';
+	unit<uint32> LAU := LAU_org/StudyArea;
 	
 	unit<uint32> NUTS3 := select_with_attr_by_cond(impl/NUTS/NUTS_RG_01M_2021_3035_gpkg, impl/NUTS/NUTS_RG_01M_2021_3035_gpkg/LEVL_CODE == 3w);
 	
 	unit<uint32> Country := select_with_attr_by_cond(impl/NUTS/NUTS_RG_01M_2021_3035_gpkg, impl/NUTS/NUTS_RG_01M_2021_3035_gpkg/LEVL_CODE == 0w)
 	{
 		attribute<LambertEA> geometry_lea  (poly) := geometry_base[LambertEA];
-		attribute<bool>      IsEU            := const(TRUE,.); 
+		attribute<bool>      IsEU                 := const(TRUE,.); 
 
 		unit<uint32> Subset := select_with_org_rel(ModelParameters/Use_Country_selection ? NUTS_NAME == /ModelParameters/StudyArea : IsEu)
 		{
