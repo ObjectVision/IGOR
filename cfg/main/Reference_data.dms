@@ -27,7 +27,7 @@ Container Reference_data
 		attribute<.> per_i (i) := per_domain;
 	}
 	unit<ipoint>        i                      := domain;
-	attribute<float32>  P_i                (i) := Ardeco;
+	attribute<float32>  P_i                (i) := Ardeco, Descr = "Population per 1km gridcell i, based on ARDECO dataset";
 	
 	container E_ib := 
 		for_each_nedv(
@@ -35,7 +35,7 @@ Container Reference_data
 			, 'Share_'+BroadClasses/label
 			, i
 			, float32
-		)
+		), Descr = "Population per 1 km gridcell i, per BroadAgeGroup, based on ESTAT dataset" 
 	{
 		attribute<float32>  Total  (domain) := = 'add('+AsItemList(BroadClasses/name)+')';
 	}
@@ -46,7 +46,7 @@ Container Reference_data
 			, 'Share_'+Sex/name
 			, i
 			, float32
-		)
+		), Descr = "Population per 1 km gridcell i, per sex, based on ESTAT dataset" 
 	{
 		attribute<float32>  Total  (domain) := = 'add('+AsItemList(Sex/name)+')';
 	}
@@ -57,26 +57,26 @@ Container Reference_data
 			, 'sum(Population/AGEGROUP5_SEX_perLAU/result/SexAgeClass_rel == SexAgeClasses/v/'+SexAgeClasses/name+' ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel)'
 			, r
 			, float32
-		)
+		), Descr = "Population per LAU region, split per SexAgeGroup"
 	{
 		attribute<float32>  Total  (r) := = 'add('+AsItemList(SexAgeClasses/name)+')';
 	}
 	
-	container Q_s_shares := 
-		for_each_nedv(
-			Sex/name
-			, '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/first_rel)+') / Q_asr/total'
-			, r
-			, float32
-		);
+	// container Q_s_shares := 
+		// for_each_nedv(
+			// Sex/name
+			// , '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/first_rel)+') / Q_asr/total'
+			// , r
+			// , float32
+		// );
 	
-	container Q_b_shares := 
-		for_each_nedv(
-			BroadClasses/name
-			, '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/BroadClasses_rel)+') / Q_asr/total'
-			, r
-			, float32
-		);
+	// container Q_b_shares := 
+		// for_each_nedv(
+			// BroadClasses/name
+			// , '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/BroadClasses_rel)+') / Q_asr/total'
+			// , r
+			// , float32
+		// );
 	
 	
 	
@@ -94,7 +94,7 @@ Container Reference_data
 					, 'const(1f, r)'
 					, r
 					, float32
-				);
+				), Descr = "balancing factor SexAgeGroup in region r"
 		}
 		
 		container LastIter := =last(Iter/name)
@@ -117,8 +117,7 @@ Container Reference_data
 				
 			attribute<float32> Diff_X_i_P_i (i) := X_asi/Total - P_i, Descr = "difference between output summed pop per grid cell and input total pop.";
 			
-			attribute<float32>  MAPE (r) := 100f * (1f / count(X_asi/Total,  i/r_rel)[float32]) 
-													* sum( abs(P_i - X_asi/Total) / P_i,  i/r_rel), Descr = "Mean Absolute Percentage Error: a measure used to evaluate the accuracy of a forecasting model. It expresses the accuracy as a percentage. Interpretation: Lower MAPE: Indicates a better fitting model, as the errors are smaller in comparison to the actual values. Higher MAPE: Suggests a less accurate model, with larger errors relative to the actual values.";
+			attribute<float32>  MAPE (r) := 100f * (1f / count(X_asi/Total,  i/r_rel)[float32]) * sum( abs(P_i - X_asi/Total) / P_i,  i/r_rel), Descr = "Mean Absolute Percentage Error: a measure used to evaluate the accuracy of a forecasting model. It expresses the accuracy as a percentage. Interpretation: Lower MAPE: Indicates a better fitting model, as the errors are smaller in comparison to the actual values. Higher MAPE: Suggests a less accurate model, with larger errors relative to the actual values.";
 		}
 	}
 	
@@ -136,8 +135,7 @@ Container Reference_data
 		container PrevIter := =PrevIterName;
 		///
 		
-		attribute<float32> A_i (i) := ='P_i / ('+AsList('E_is/'+SexAgeClasses/Sex_rel -> name+' * E_ib/'+SexAgeClasses/BroadClasses_rel -> name+' * PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]', '+')+')',
-		Descr="balancing factor, total population in cell i";
+		attribute<float32> A_i (i) := ='P_i / ('+AsList('E_is/'+SexAgeClasses/Sex_rel -> name+' * E_ib/'+SexAgeClasses/BroadClasses_rel -> name+' * PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]', '+')+')', Descr = "balancing factor, totale populatie in cell i. Which means that it, ceteris paribus, scales with population density"; 
 		
 		container X_asi := 
 			for_each_nedv(
@@ -154,9 +152,12 @@ Container Reference_data
 		container B_asr := 
 			for_each_nedv(
 				SexAgeClasses/name
-				, 'PrevIter/B_asr/'+SexAgeClasses/name+' * Q_asr/'+SexAgeClasses/name+' / sum(X_asi/'+SexAgeClasses/name+', i/r_rel)'
+				, 'MakeDefined(PrevIter/B_asr/'+SexAgeClasses/name+' * Q_asr/'+SexAgeClasses/name+' / sum(X_asi/'+SexAgeClasses/name+', i/r_rel), 0f)'
 				, r
 				, float32
-			), Descr="Recalculated balancing factor SexAgeGroup in region r, used in next iteration";
+			), Descr = "Recalculated balancing factor SexAgeGroup in region r, used in next iteration"
+		{
+			attribute<float32> Total (r) := =AsList(''+SexAgeClasses/name, '+');
+		}
 	}
 }
