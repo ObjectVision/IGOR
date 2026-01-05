@@ -69,6 +69,7 @@ container Classifications: Using = "Units", KeepData = "True"
 																						: 'Y'+string(from) + '_'+string(to) 
 																					: 'Over85', descr = "descriptive name of age class";
 		attribute<BroadClasses>   broadfrom                                   := classify(from, BroadClasses/from), descr = "link with broad age classes";
+		attribute<BroadClasses>   BroadClasses_rel                            := classify(from, BroadClasses/from), descr = "link with broad age classes";
 		attribute<EurostatClaims> eurostatfrom                                := classify(from, EurostatClaims/from), descr = "link with eurostat claim age classes";
 		attribute<float32>        average                                       := id(.) < max(id(.)) ? float32(from + to + 1) / 2f : float32(from) + 5f, descr = "average age in age class (assumed equal distribution)";
 		attribute<float32>        IntraRegionalMobility                       := IntraRegionalMobility_bc[eurostatfrom], descr = "assumed annual intra regional mobility in age class (static, obtained from census 2011)";

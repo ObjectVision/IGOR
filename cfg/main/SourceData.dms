@@ -137,7 +137,12 @@ container SourceData
 				
 				attribute<string>    SexAgeClass_name := Sex+'_'+AgeGroup;
 				
-				attribute<SexAgeClasses> SexAgeClass_rel := rlookup(SexAgeClass_name, SexAgeClasses/name);
+				attribute<SexAgeClasses> SexAgeClass_rel   := rlookup(SexAgeClass_name, SexAgeClasses/name);
+				attribute<Gender/woT>    SexClass_rel      := rlookup(Sex, Gender/woT/name);
+				attribute<AgeClasses>    AgeClass_rel      := rlookup(AgeGroup, AgeClasses/label);
+				attribute<BroadClasses>  BroadAgeClass_rel := AgeClasses/BroadClasses_rel[AgeClass_rel];
+				
+				
 			}
 		}
 	}

@@ -23,8 +23,18 @@ Container Reference_data
 	attribute<float32>  Share_15_64      (domain) := ESTAT_15_64  / ESTAT_Total_Age;
 	attribute<float32>  Share_GE65       (domain) := ESTAT_GE65   / ESTAT_Total_Age;
 	
+	
 	container Checks
 	{
+		attribute<bool>     ESTAT_Sex_0_and_with_ARDECO_pop (i) := ESTAT_Total_Sex < 1f && P_i > 0f;
+		attribute<bool>     ESTAT_Age_0_and_with_ARDECO_pop (i) := ESTAT_Total_Age < 1f && P_i > 0f;
+		attribute<float32>  Share_M_LAU                     (r) := sum(Population/AGEGROUP5_SEX_perLAU/result/SexClass_rel == Sex/v/M ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total;
+		attribute<float32>  Share_F_LAU                     (r) := 1f - Share_M_LAU;
+		attribute<float32>  Share_LT15_LAU                  (r) := sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/LT15 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total;
+		attribute<float32>  Share_15_64_LAU                 (r) := sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/_15_64 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total;
+		attribute<float32>  Share_GE65_LAU                  (r) := sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/GE65 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total;
+	
+	
 		attribute<float32>  P_r                 (r) := sum(P_i, i/r_rel);
 		attribute<float32>  Diff_Q_and_P        (r) := Q_asr/total -  P_r;
 		attribute<float32>  Diff_Q_and_P_ifany0 (r) := Q_asr/total == 0f || P_r == 0f ? Diff_Q_and_P : 0f;
@@ -41,7 +51,7 @@ Container Reference_data
 	container E_ib := 
 		for_each_nedv(
 			BroadClasses/name
-			, 'Share_'+BroadClasses/label
+			, 'Checks/ESTAT_Age_0_and_with_ARDECO_pop ? Checks/Share_'+BroadClasses/label+'_LAU[r/per_i] : Share_'+BroadClasses/label
 			, i
 			, float32
 		), Descr = "Population per 1 km gridcell i, per BroadAgeGroup, based on ESTAT dataset" 
@@ -52,7 +62,7 @@ Container Reference_data
 	container E_is := 
 		for_each_nedv(
 			Sex/name
-			, 'Share_'+Sex/name
+			, 'Checks/ESTAT_Sex_0_and_with_ARDECO_pop ? Checks/Share_'+Sex/name+'_LAU[r/per_i] : Share_'+Sex/name
 			, i
 			, float32
 		), Descr = "Population per 1 km gridcell i, per sex, based on ESTAT dataset" 
