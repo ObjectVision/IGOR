@@ -4,13 +4,15 @@ Container Reference_data
 {
 	parameter<uint8>    NumberOfIterations        := 10b,           Descr = "Number of iterations for balancing assignment.";
 	unit<uint32>        Sex                       := /Classifications/Gender/woT;
+	parameter<float32>  ε                         := 0.00001f;
+	
 	
 	attribute<float32>  Ardeco           (domain) := float32(Population/Ardeco/data);
-	attribute<float32>  ESTAT_M          (domain) := float32(Population/ESTAT_Male/data);
-	attribute<float32>  ESTAT_F          (domain) := float32(Population/ESTAT_Female/data);
-	attribute<float32>  ESTAT_LT15       (domain) := float32(Population/ESTAT_LT15/data);
-	attribute<float32>  ESTAT_15_64      (domain) := float32(Population/ESTAT_15_64/data);
-	attribute<float32>  ESTAT_GE65       (domain) := float32(Population/ESTAT_GE65/data);
+	attribute<float32>  ESTAT_M          (domain) := float32(Population/ESTAT_Male/data) == 0f ? ε : float32(Population/ESTAT_Male/data);
+	attribute<float32>  ESTAT_F          (domain) := float32(Population/ESTAT_Female/data) == 0f ? ε : float32(Population/ESTAT_Female/data);
+	attribute<float32>  ESTAT_LT15       (domain) := float32(Population/ESTAT_LT15/data) == 0f ? ε : float32(Population/ESTAT_LT15/data);
+	attribute<float32>  ESTAT_15_64      (domain) := float32(Population/ESTAT_15_64/data) == 0f ? ε : float32(Population/ESTAT_15_64/data);
+	attribute<float32>  ESTAT_GE65       (domain) := float32(Population/ESTAT_GE65/data) == 0f ? ε : float32(Population/ESTAT_GE65/data);
 	
 	attribute<float32>  ESTAT_Total_Sex  (domain) := ESTAT_M + ESTAT_F;
 	attribute<float32>  ESTAT_Total_Age  (domain) := ESTAT_LT15 + ESTAT_15_64 + ESTAT_GE65;
