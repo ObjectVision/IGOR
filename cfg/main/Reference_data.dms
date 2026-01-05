@@ -137,6 +137,22 @@ Container Reference_data
 			attribute<float32> Diff_X_i_P_i (i) := X_asi/Total - P_i, Descr = "difference between output summed pop per grid cell and input total pop.";
 			
 			attribute<float32>  MAPE (r) := 100f * (1f / count(X_asi/Total,  i/r_rel)[float32]) * sum( abs(P_i - X_asi/Total) / P_i,  i/r_rel), Descr = "Mean Absolute Percentage Error: a measure used to evaluate the accuracy of a forecasting model. It expresses the accuracy as a percentage. Interpretation: Lower MAPE: Indicates a better fitting model, as the errors are smaller in comparison to the actual values. Higher MAPE: Suggests a less accurate model, with larger errors relative to the actual values.";
+			
+			container Error_Distr_vs_Expected_Shares := 
+				for_each_nedv(
+					SexAgeClasses/name
+					, 'abs(sum(X_asi/'+SexAgeClasses/name+' , i/r_rel) / sum(X_asi/Total, i/r_rel) - Q_asr/'+SexAgeClasses/name+' / Q_asr/Total)'
+					, r
+					, float32
+				), Descr = "Error in distributed vs expected population shares";
+				
+			container Error_Abs_vs_Expected_Sizes := 
+				for_each_nedv(
+					SexAgeClasses/name
+					, 'abs(sum(X_asi/'+SexAgeClasses/name+' , i/r_rel) - Q_asr/'+SexAgeClasses/name+')'
+					, r
+					, float32
+				), Descr = "Error in absolute vs expected population sizes";
 		}
 	}
 	
