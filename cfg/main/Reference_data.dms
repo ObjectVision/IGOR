@@ -8,11 +8,11 @@ Container Reference_data
 	
 	
 	attribute<float32>  Ardeco           (domain) := float32(Population/Ardeco/data);
-	attribute<float32>  ESTAT_M          (domain) := float32(Population/ESTAT_Male/data) == 0f ? ε : float32(Population/ESTAT_Male/data);
-	attribute<float32>  ESTAT_F          (domain) := float32(Population/ESTAT_Female/data) == 0f ? ε : float32(Population/ESTAT_Female/data);
-	attribute<float32>  ESTAT_LT15       (domain) := float32(Population/ESTAT_LT15/data) == 0f ? ε : float32(Population/ESTAT_LT15/data);
-	attribute<float32>  ESTAT_15_64      (domain) := float32(Population/ESTAT_15_64/data) == 0f ? ε : float32(Population/ESTAT_15_64/data);
-	attribute<float32>  ESTAT_GE65       (domain) := float32(Population/ESTAT_GE65/data) == 0f ? ε : float32(Population/ESTAT_GE65/data);
+	attribute<float32>  ESTAT_M          (domain) := max_elem(float32(Population/ESTAT_Male/data  ), ε);
+	attribute<float32>  ESTAT_F          (domain) := max_elem(float32(Population/ESTAT_Female/data), ε);
+	attribute<float32>  ESTAT_LT15       (domain) := max_elem(float32(Population/ESTAT_LT15/data  ), ε);
+	attribute<float32>  ESTAT_15_64      (domain) := max_elem(float32(Population/ESTAT_15_64/data ), ε);
+	attribute<float32>  ESTAT_GE65       (domain) := max_elem(float32(Population/ESTAT_GE65/data  ), ε);
 	
 	attribute<float32>  ESTAT_Total_Sex  (domain) := ESTAT_M + ESTAT_F;
 	attribute<float32>  ESTAT_Total_Age  (domain) := ESTAT_LT15 + ESTAT_15_64 + ESTAT_GE65;
@@ -189,10 +189,21 @@ Container Reference_data
 			// if X_asr < Q_asr -> B_asr larger
 			// if X_asr ~= 0 and Q_asr > 0 -> B_asr towards infinity
 			
-		container B_asr := 
+		container B_asr_raw := 
 			for_each_nedv(
 				SexAgeClasses/name
 				, 'MakeDefined(PrevIter/B_asr/'+SexAgeClasses/name+' * Q_asr/'+SexAgeClasses/name+' / sum(X_asi/'+SexAgeClasses/name+', i/r_rel), 0f)'
+				, r
+				, float32
+			), Descr = "Recalculated balancing factor SexAgeGroup in region r, used in next iteration"
+		{
+			attribute<float32> Total (r) := =AsList(''+SexAgeClasses/name, '+');
+			attribute<float32> Max_elem   (r) := ='max_elem('+AsList(''+SexAgeClasses/name, ',')+', ε)';
+		}
+		container B_asr := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, 'B_asr_raw/'+SexAgeClasses/name + ' / B_asr_raw/Max_elem'
 				, r
 				, float32
 			), Descr = "Recalculated balancing factor SexAgeGroup in region r, used in next iteration"
