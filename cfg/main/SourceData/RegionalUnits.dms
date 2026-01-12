@@ -21,6 +21,12 @@ container RegionalUnits : Using = "Geography;"
 		, SyncMode = "AllTables"
 		, DialogData = "LambertEA";
 		
+		container LAU_overrides_2022
+		: StorageName = "%IGOR_DataDir%/Regions/LAU_RG_01M_2022_3035_overrides.gpkg"
+		, StorageType = "gdal.vect"
+		, StorageReadOnly = "True"
+		, SyncMode = "AllTables"
+		, DialogData = "LambertEA";
 		
 		unit<uint32> Country 
 		: StorageName = "%IGOR_DataDir%/Regions/CNTR_RG_01M_2020_3035.shp"
@@ -90,13 +96,28 @@ container RegionalUnits : Using = "Geography;"
 		attribute<float32> count_cel_in_r      := float32(pcount(per_domain));
 		attribute<bool>    IsStudyArea         := IsDefined(point_in_polygon(centroid_or_mid(geometry), Country/subset/geometry_BB[LambertEA]));
 		attribute<bool>    IsContinentalEU     := IsDefined(point_in_polygon(centroid_or_mid(geometry), impl/Continental_EU/geometry));
+		attribute<bool>	   Drop				   := GISCO_ID = 'DE_12073505' || GISCO_ID = 'FI_099' || GISCO_ID = 'NL_GM0788';
+		attribute<impl/LAU_overrides_2022/lau_rg_01m_2022_3035_overrides> overrides_id:= rlookup(GISCO_ID, impl/LAU_overrides_2022/lau_rg_01m_2022_3035_overrides/GISCO_ID);
+		attribute<bool>	   use_override:= isdefined(overrides_id);
+		attribute<LambertEA> geom_override (poly):= use_override ? impl/LAU_overrides_2022/lau_rg_01m_2022_3035_overrides/Geometry[overrides_id] : Geometry;
 		
-		unit<uint32> StudyArea := =ModelParameters/Use_Country_selection ? 'select_with_org_rel(IsStudyArea && IsContinentalEU)' : 'select_with_org_rel(IsContinentalEU)'
+		
+		unit<uint32> StudyArea := =ModelParameters/Use_Country_selection ? 'select_with_org_rel(IsStudyArea && IsContinentalEU && !drop)' : 'select_with_org_rel(IsContinentalEU && !drop)'
 		{
-			attribute<LambertEA>   geometry     (poly) := ../geometry[org_rel];
+			attribute<LambertEA>   geometry     (poly) := ../geom_override[org_rel];
 			attribute<.>           per_domain (domain) := poly2grid(geometry, domain);
 			attribute<string>      GISCO_ID            := ../GISCO_ID[org_rel];
+			attribute<uint32>	   as_pl_count         := pcount(SourceData/Population/AGEGROUP5_SEX_perLAU/result/LAU_rel);
+			attribute<float32>	   pop_as_pl		   := sum(/SourceData/Population/AGEGROUP5_SEX_perLAU/result/Pop, /SourceData/Population/AGEGROUP5_SEX_perLAU/result/LAU_rel);
+			
+			unit<uint32> no_LAU_rel:= select_with_org_rel(as_pl_count < 1 && strcount(StudyArea/GISCO_ID, 'CH') = 0) {
+				attribute<string> GISCO_ID:= StudyArea/GISCO_ID[org_rel];
+				
+				unit<uint32> uniques:= unique(GISCO_ID);
+			}
 		}
+		
+		
 	}
 	
 	// unit<uint32> LAU := =ModelParameters/Use_Country_selection ? 'LAU_org/StudyArea' : 'LAU_org';

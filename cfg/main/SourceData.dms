@@ -144,6 +144,20 @@ container SourceData
 				
 				
 			}
+			unit<uint32> Schoeneberg:= select_with_org_rel(data/GISCO_ID='DE_12073440' || data/GISCO_ID='DE_12073386') {
+				attribute<string> GISCO_ID:= data/GISCO_ID[org_rel];
+				attribute<float32> pop:= Result/Pop[org_rel];
+				attribute<SexAgeClasses> SexAgeClass_rel:= Result/SexAgeClass_rel[org_rel];
+			}
+			unit<uint32> no_LAU_rel:= select_with_org_rel(!IsDefined(Result/LAU_rel) && !IsDefined(rlookup(data/GISCO_ID, RegionalUnits/LAU_org/GISCO_ID))) {
+				attribute<string> GISCO_ID:= data/GISCO_ID[org_rel];
+				attribute<float32> pop:= Result/Pop[org_rel];
+				attribute<SexAgeClasses> SexAgeClass_rel:= Result/SexAgeClass_rel[org_rel];
+				attribute<uniques> u_rel:= rlookup(GISCO_ID, uniques/Values);
+				
+				unit<uint32> uniques:= unique(GISCO_ID) {attribute<float32> pop:= sum(no_LAU_rel/pop, no_LAU_rel/u_rel);}
+			}
+		
 		}
 	}
 }
