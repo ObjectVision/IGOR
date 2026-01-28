@@ -42,7 +42,7 @@ Container Reference_data
 	
 	unit<uint32>        r                      := LAU
 	{
-		attribute<.> per_i (i) := per_domain;
+		attribute<.> per_i (i) := ='per_domain_'+string(ModelParameters/Gridsize)+'m';
 	}
 	unit<ipoint>        i                      := domain;
 	attribute<float32>  P_i                (i) := Ardeco, Descr = "Population per 1km gridcell i, based on ARDECO dataset";
