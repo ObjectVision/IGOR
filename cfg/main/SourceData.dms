@@ -19,7 +19,7 @@ container SourceData
 		{
 			attribute<uint32>  GridData;
 			attribute<uint32>  ReadData             (domain);
-			attribute<float32> Data     (domain) := =ModelParameters/Gridsize == 100d ? 'float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel])' : 'float32(ReadData)';
+			attribute<Person>  Data     (domain) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
 		}
 		
 		unit<ipoint> ESTAT_Male
@@ -33,7 +33,7 @@ container SourceData
 		{
 			attribute<float32> GridData;
 			attribute<float32> ReadData       (domain);
-			attribute<float32> Data     (domain) := =ModelParameters/Gridsize == 100d ? 'float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel])' : 'float32(ReadData)';
+			attribute<Person>  Data     (domain) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
 		}
 
 		unit<ipoint> ESTAT_Female
@@ -47,7 +47,7 @@ container SourceData
 		{
 			attribute<float32> GridData;
 			attribute<float32> ReadData (domain);
-			attribute<float32> Data     (domain) := =ModelParameters/Gridsize == 100d ? 'float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel])' : 'float32(ReadData)';
+			attribute<Person>  Data     (domain) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
 		}
 		
 		unit<ipoint> ESTAT_LT15
@@ -61,7 +61,7 @@ container SourceData
 		{
 			attribute<float32> GridData;
 			attribute<float32> ReadData (domain);
-			attribute<float32> Data     (domain) := =ModelParameters/Gridsize == 100d ? 'float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel])' : 'float32(ReadData)';
+			attribute<Person>  Data     (domain) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
 		}
 		
 		unit<ipoint> ESTAT_15_64
@@ -75,7 +75,7 @@ container SourceData
 		{
 			attribute<float32> GridData;
 			attribute<float32> ReadData (domain);
-			attribute<float32> Data     (domain) := =ModelParameters/Gridsize == 100d ? 'float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel])' : 'float32(ReadData)';
+			attribute<Person>  Data     (domain) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
 		}
 		unit<ipoint> ESTAT_GE65
 		: StorageName = "='%IGOR_DataDir%/Population/ESTAT_OBS-VALUE-Y_GE65_'+ModelParameters/PopYear+'_V2.tiff'"
@@ -88,7 +88,7 @@ container SourceData
 		{
 			attribute<float32> GridData;
 			attribute<float32> ReadData (domain);
-			attribute<float32> Data     (domain) := =ModelParameters/Gridsize == 100d ? 'float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel])' : 'float32(ReadData)';
+			attribute<Person>  Data     (domain) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
 		}
 		
 		container AGEGROUP5_SEX_perLAU
@@ -131,7 +131,7 @@ container SourceData
 				attribute<LambertEA> Geometry (poly)  := SourceData/RegionalUnits/LAU/geometry[LAU_rel];
 				attribute<string>    Sex              := data/sex;
 				attribute<string>    AgeGroup         := replace(data/age, 'LT5', 'Y00_04', 'Y5-9', 'Y05_09', 'Y85-89', 'Over85', 'Y90-94', 'Over85', 'Y95-99', 'Over85', 'GE100', 'Over85','-', '_');
-				attribute<float32>   Pop              := float32(data/Pop);
+				attribute<Person>    Pop              := float32(data/Pop)[Person];
 				
 				attribute<string>    SexAgeClass_name := Sex+'_'+AgeGroup;
 				
@@ -140,20 +140,26 @@ container SourceData
 				attribute<AgeClasses>          AgeClass_rel      := rlookup(AgeGroup, AgeClasses/label);
 				attribute<BroadClasses>        BroadAgeClass_rel := AgeClasses/BroadClasses_rel[AgeClass_rel];
 			}
-			unit<uint32> Schoeneberg:= select_with_org_rel(data/GISCO_ID='DE_12073440' || data/GISCO_ID='DE_12073386') {
-				attribute<string> GISCO_ID:= data/GISCO_ID[org_rel];
-				attribute<float32> pop:= Result/Pop[org_rel];
-				attribute<SexAgeClasses> SexAgeClass_rel:= Result/SexAgeClass_rel[org_rel];
+			
+			unit<uint32> Schoeneberg := select_with_org_rel(data/GISCO_ID='DE_12073440' || data/GISCO_ID='DE_12073386') 
+			{
+				attribute<string>        GISCO_ID        := data/GISCO_ID[org_rel];
+				attribute<Person>        pop             := Result/Pop[org_rel];
+				attribute<SexAgeClasses> SexAgeClass_rel := Result/SexAgeClass_rel[org_rel];
 			}
-			unit<uint32> no_LAU_rel:= select_with_org_rel(!IsDefined(Result/LAU_rel) && !IsDefined(rlookup(data/GISCO_ID, RegionalUnits/LAU_org/GISCO_ID))) {
-				attribute<string> GISCO_ID:= data/GISCO_ID[org_rel];
-				attribute<float32> pop:= Result/Pop[org_rel];
-				attribute<SexAgeClasses> SexAgeClass_rel:= Result/SexAgeClass_rel[org_rel];
-				attribute<uniques> u_rel:= rlookup(GISCO_ID, uniques/Values);
+			
+			unit<uint32> no_LAU_rel := select_with_org_rel(!IsDefined(Result/LAU_rel) && !IsDefined(rlookup(data/GISCO_ID, RegionalUnits/LAU_org/GISCO_ID))) 
+			{
+				attribute<string>        GISCO_ID        := data/GISCO_ID[org_rel];
+				attribute<Person>        pop             := Result/Pop[org_rel];
+				attribute<SexAgeClasses> SexAgeClass_rel := Result/SexAgeClass_rel[org_rel];
+				attribute<uniques>       u_rel           := rlookup(GISCO_ID, uniques/Values);
 				
-				unit<uint32> uniques:= unique(GISCO_ID) {attribute<float32> pop:= sum(no_LAU_rel/pop, no_LAU_rel/u_rel);}
+				unit<uint32> uniques := unique(GISCO_ID) 
+				{
+					attribute<Person> pop := sum(no_LAU_rel/pop, no_LAU_rel/u_rel);
+				}
 			}
-		
 		}
 	}
 }

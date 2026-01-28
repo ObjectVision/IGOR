@@ -6,37 +6,37 @@ Container Reference_data
 	parameter<float32>  ε                         := 0.00001f;
 	
 	
-	attribute<float32>  Ardeco           (domain) := float32(Population/Ardeco/data);
-	attribute<float32>  ESTAT_M          (domain) := max_elem(float32(Population/ESTAT_Male/data  ), ε);
-	attribute<float32>  ESTAT_F          (domain) := max_elem(float32(Population/ESTAT_Female/data), ε);
-	attribute<float32>  ESTAT_LT15       (domain) := max_elem(float32(Population/ESTAT_LT15/data  ), ε);
-	attribute<float32>  ESTAT_15_64      (domain) := max_elem(float32(Population/ESTAT_15_64/data ), ε);
-	attribute<float32>  ESTAT_GE65       (domain) := max_elem(float32(Population/ESTAT_GE65/data  ), ε);
+	attribute<Person>  Ardeco           (domain) := Population/Ardeco/data;
+	attribute<Person>  ESTAT_M          (domain) := max_elem(Population/ESTAT_Male/data  , ε);
+	attribute<Person>  ESTAT_F          (domain) := max_elem(Population/ESTAT_Female/data, ε);
+	attribute<Person>  ESTAT_LT15       (domain) := max_elem(Population/ESTAT_LT15/data  , ε);
+	attribute<Person>  ESTAT_15_64      (domain) := max_elem(Population/ESTAT_15_64/data , ε);
+	attribute<Person>  ESTAT_GE65       (domain) := max_elem(Population/ESTAT_GE65/data  , ε);
 	
-	attribute<float32>  ESTAT_Total_Sex  (domain) := ESTAT_M + ESTAT_F;
-	attribute<float32>  ESTAT_Total_Age  (domain) := ESTAT_LT15 + ESTAT_15_64 + ESTAT_GE65;
+	attribute<Person>  ESTAT_Total_Sex  (domain) := ESTAT_M + ESTAT_F;
+	attribute<Person>  ESTAT_Total_Age  (domain) := ESTAT_LT15 + ESTAT_15_64 + ESTAT_GE65;
 
-	attribute<float32>  Share_M          (domain) := MakeDefined(ESTAT_M   / ESTAT_Total_Sex, 1f);
-	attribute<float32>  Share_F          (domain) := 1f - Share_M;
-	attribute<float32>  Share_LT15       (domain) := ESTAT_LT15   / ESTAT_Total_Age;
-	attribute<float32>  Share_15_64      (domain) := ESTAT_15_64  / ESTAT_Total_Age;
-	attribute<float32>  Share_GE65       (domain) := ESTAT_GE65   / ESTAT_Total_Age;
+	attribute<Share>   Share_M          (domain) := MakeDefined(ESTAT_M   / ESTAT_Total_Sex, 1f)[Share];
+	attribute<Share>   Share_F          (domain) := 1f - Share_M;
+	attribute<Share>   Share_LT15       (domain) := (ESTAT_LT15   / ESTAT_Total_Age)[Share];
+	attribute<Share>   Share_15_64      (domain) := (ESTAT_15_64  / ESTAT_Total_Age)[Share];
+	attribute<Share>   Share_GE65       (domain) := (ESTAT_GE65   / ESTAT_Total_Age)[Share];
 	
 	
 	container Checks
 	{
 		attribute<bool>     ESTAT_Sex_0_and_with_ARDECO_pop (i) := ESTAT_Total_Sex < 1f && P_i > 0f;
 		attribute<bool>     ESTAT_Age_0_and_with_ARDECO_pop (i) := ESTAT_Total_Age < 1f && P_i > 0f;
-		attribute<float32>  Share_M_LAU                     (r) := sum(Population/AGEGROUP5_SEX_perLAU/result/SexClass_rel == Sex/v/M ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total;
-		attribute<float32>  Share_F_LAU                     (r) := 1f - Share_M_LAU;
-		attribute<float32>  Share_LT15_LAU                  (r) := sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/LT15 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total;
-		attribute<float32>  Share_15_64_LAU                 (r) := sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/_15_64 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total;
-		attribute<float32>  Share_GE65_LAU                  (r) := sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/GE65 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total;
+		attribute<Share>    Share_M_LAU                     (r) := (sum(Population/AGEGROUP5_SEX_perLAU/result/SexClass_rel == Sex/v/M ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total)[Share];
+		attribute<Share>    Share_F_LAU                     (r) := 1f - Share_M_LAU;
+		attribute<Share>    Share_LT15_LAU                  (r) := (sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/LT15 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total)[Share];
+		attribute<Share>    Share_15_64_LAU                 (r) := (sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/_15_64 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total)[Share];
+		attribute<Share>    Share_GE65_LAU                  (r) := (sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/GE65 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total)[Share];
 	
 	
-		attribute<float32>  P_r                             (r) := sum(P_i, i/r_rel); //debug
-		attribute<float32>  Diff_Q_and_P                    (r) := Q_asr/total -  P_r; //debug
-		attribute<float32>  Diff_Q_and_P_ifany0             (r) := Q_asr/total == 0f || P_r == 0f ? Diff_Q_and_P : 0f; //debug
+		attribute<Person>   P_r                             (r) := sum(P_i, i/r_rel); //debug
+		attribute<Person>   Diff_Q_and_P                    (r) := Q_asr/total -  P_r; //debug
+		attribute<Person>   Diff_Q_and_P_ifany0             (r) := Q_asr/total == 0f || P_r == 0f ? Diff_Q_and_P : 0f; //debug
 	}
 	
 	
@@ -45,17 +45,17 @@ Container Reference_data
 		attribute<.> per_i (i) := ='per_domain_'+string(ModelParameters/Gridsize)+'m';
 	}
 	unit<ipoint>        i                      := domain;
-	attribute<float32>  P_i                (i) := Ardeco, Descr = "Population per 1km gridcell i, based on ARDECO dataset";
+	attribute<Person>   P_i                (i) := Ardeco, Descr = "Population per 1km gridcell i, based on ARDECO dataset";
 	
 	container E_ib := 
 		for_each_nedv(
 			BroadClasses/name
 			, 'Checks/ESTAT_Age_0_and_with_ARDECO_pop ? Checks/Share_'+BroadClasses/label+'_LAU[r/per_i] : Share_'+BroadClasses/label
 			, i
-			, float32
+			, Share
 		), Descr = "Population per 1 km gridcell i, per BroadAgeGroup, based on ESTAT dataset" 
 	{
-		attribute<float32>  Total  (domain) := = 'add('+AsItemList(BroadClasses/name)+')';
+		attribute<Share>  Total  (domain) := = 'add('+AsItemList(BroadClasses/name)+')';
 	}
 		
 	container E_is := 
@@ -63,10 +63,10 @@ Container Reference_data
 			Sex/name
 			, 'Checks/ESTAT_Sex_0_and_with_ARDECO_pop ? Checks/Share_'+Sex/name+'_LAU[r/per_i] : Share_'+Sex/name
 			, i
-			, float32
+			, Share
 		), Descr = "Population per 1 km gridcell i, per sex, based on ESTAT dataset" 
 	{
-		attribute<float32>  Total  (domain) := = 'add('+AsItemList(Sex/name)+')';
+		attribute<Share>  Total  (domain) := = 'add('+AsItemList(Sex/name)+')';
 	}
 		
 	container Q_asr := 
@@ -74,27 +74,27 @@ Container Reference_data
 			SexAgeClasses/name
 			, 'sum(Population/AGEGROUP5_SEX_perLAU/result/SexAgeClass_rel == SexAgeClasses/v/'+SexAgeClasses/name+' ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel)'
 			, r
-			, float32
+			, Person
 		), Descr = "Population per LAU region, split per SexAgeGroup"
 	{
-		attribute<float32>  Total  (r) := = 'add('+AsItemList(SexAgeClasses/name)+')';
+		attribute<Person>  Total  (r) := = 'add('+AsItemList(SexAgeClasses/name)+')';
 	}
 	
-	// container Q_s_shares := 
-		// for_each_nedv(
-			// Sex/name
-			// , '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/first_rel)+') / Q_asr/total'
-			// , r
-			// , float32
-		// );
+	container Q_s_shares := 
+		for_each_nedv(
+			Sex/name
+			, '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/first_rel)+') / Q_asr/total'
+			, r
+			, Share
+		);
 	
-	// container Q_b_shares := 
-		// for_each_nedv(
-			// BroadClasses/name
-			// , '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/BroadClasses_rel)+') / Q_asr/total'
-			// , r
-			// , float32
-		// );
+	container Q_b_shares := 
+		for_each_nedv(
+			BroadClasses/name
+			, '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/BroadClasses_rel)+') / Q_asr/total'
+			, r
+			, Share
+		);
 	
 	container Iters :=
 		for_each_ne(
@@ -112,54 +112,54 @@ Container Reference_data
 					, float32
 				), Descr = "balancing factor SexAgeGroup in region r";
 		}
-		
-		container LastIter := =last(Iter/name)
+	}
+	
+	container Result := ='Iters/'+last(Iter/name)
+	{
+		container X_asr := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, 'sum(X_asi/'+SexAgeClasses/name+', i/r_rel)'
+				, r
+				, Person
+			), Descr = "population per SexAgeGroup per cell summed per region."
 		{
-			container X_asr := 
-				for_each_nedv(
-					SexAgeClasses/name
-					, 'sum(X_asi/'+SexAgeClasses/name+', i/r_rel)'
-					, r
-					, float32
-				)
-			{
-				attribute<float32>  Total  (r) := = 'add('+AsItemList(SexAgeClasses/name)+')';
-			}
-				
-			container Diff_X_asr_Q_asr := 
-				for_each_nedv(
-					SexAgeClasses/name
-					, 'X_asr/'+SexAgeClasses/name+' - Q_asr/'+SexAgeClasses/name+ ' * (sum(X_asi/Total, i/r_rel) / Q_asr/Total)'
-					, r
-					, float32
-				);
-				
-			attribute<float32> Diff_X_i_P_i (i) := X_asi/Total - P_i, Descr = "difference between output summed pop per grid cell and input total pop.";
-			
-			attribute<float32>  MAPE (r) := 100f * (1f / count(X_asi/Total,  i/r_rel)[float32]) * sum( abs(P_i - X_asi/Total) / P_i,  i/r_rel), Descr = "Mean Absolute Percentage Error: a measure used to evaluate the accuracy of a forecasting model. It expresses the accuracy as a percentage. Interpretation: Lower MAPE: Indicates a better fitting model, as the errors are smaller in comparison to the actual values. Higher MAPE: Suggests a less accurate model, with larger errors relative to the actual values.";
-			
-			container Error_Distr_vs_Expected_Shares := 
-				for_each_nedv(
-					SexAgeClasses/name
-					, 'MakeDefined(abs(sum(X_asi/'+SexAgeClasses/name+' , i/r_rel) / sum(X_asi/Total, i/r_rel) - Q_asr/'+SexAgeClasses/name+' / Q_asr/Total), sum(X_asi/Total, i/r_rel) == 0f && Q_asr/Total == 0f ? 0f : 99f)'
-					, r
-					, float32
-				), Descr = "Error in distributed vs expected population shares"
-			{
-				attribute<float32>       MinElem (r) := ='min_elem('+AsItemList(SexAgeClasses/name)+')';
-				attribute<SexAgeClasses> ArgMin  (r) := ='ArgMin('+AsItemList(SexAgeClasses/name)+')';
-				attribute<float32>       MaxElem (r) := ='max_elem('+AsItemList(SexAgeClasses/name)+')';
-				attribute<SexAgeClasses> ArgMax  (r) := ='ArgMax('+AsItemList(SexAgeClasses/name)+')';
-			}
-				
-			container Error_Abs_vs_Expected_Sizes := 
-				for_each_nedv(
-					SexAgeClasses/name
-					, 'abs(sum(X_asi/'+SexAgeClasses/name+' , i/r_rel) - Q_asr/'+SexAgeClasses/name+')'
-					, r
-					, float32
-				), Descr = "Error in absolute vs expected population sizes";
+			attribute<Person>  Total  (r) := = 'add('+AsItemList(SexAgeClasses/name)+')';
 		}
+			
+		container Diff_X_asr_Q_asr := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, 'X_asr/'+SexAgeClasses/name+' - Q_asr/'+SexAgeClasses/name+ ' * (sum(X_asi/Total, i/r_rel) / Q_asr/Total)'
+				, r
+				, Person
+			);
+			
+		attribute<Person> Diff_X_i_P_i (i) := X_asi/Total - P_i, Descr = "difference between output summed pop per grid cell and input total pop.";
+		
+		attribute<float32>  MAPE (r) := 100f * (1f / count(X_asi/Total,  i/r_rel)[float32]) * sum( abs(P_i - X_asi/Total) / P_i,  i/r_rel), Descr = "Mean Absolute Percentage Error: a measure used to evaluate the accuracy of a forecasting model. It expresses the accuracy as a percentage. Interpretation: Lower MAPE: Indicates a better fitting model, as the errors are smaller in comparison to the actual values. Higher MAPE: Suggests a less accurate model, with larger errors relative to the actual values.";
+		
+		container Error_Distr_vs_Expected_Shares := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, 'MakeDefined(abs(sum(X_asi/'+SexAgeClasses/name+' , i/r_rel) / sum(X_asi/Total, i/r_rel) - Q_asr/'+SexAgeClasses/name+' / Q_asr/Total), sum(X_asi/Total, i/r_rel) == 0f && Q_asr/Total == 0f ? 0f : 99f)'
+				, r
+				, Share
+			), Descr = "Error in distributed vs expected population shares"
+		{
+			attribute<Share>         MinElem (r) := ='min_elem('+AsItemList(SexAgeClasses/name)+')';
+			attribute<SexAgeClasses> ArgMin  (r) := ='ArgMin('+AsItemList(SexAgeClasses/name)+')';
+			attribute<Share>         MaxElem (r) := ='max_elem('+AsItemList(SexAgeClasses/name)+')';
+			attribute<SexAgeClasses> ArgMax  (r) := ='ArgMax('+AsItemList(SexAgeClasses/name)+')';
+		}
+			
+		container Error_Abs_vs_Expected_Sizes := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, 'abs(sum(X_asi/'+SexAgeClasses/name+' , i/r_rel) - Q_asr/'+SexAgeClasses/name+')'
+				, r
+				, Person
+			), Descr = "Error in absolute vs expected population sizes";
 	}
 	
 	unit<UInt8> Iter := cat_range(1b, NumberOfIterations + 1b)
@@ -178,7 +178,8 @@ Container Reference_data
 		
 		attribute<float32> A_i_raw (i) := ='P_i / ('+AsList('E_is/'+SexAgeClasses/Sex_rel -> name+' 
 												* E_ib/'+SexAgeClasses/BroadClasses_rel -> name+' 
-												* PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]', '+')+')', Descr = "balancing factor, totale populatie in cell i. Which means that it, ceteris paribus, scales with population density"; 
+												* PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]', '+')+')'
+											, Descr = "balancing factor, totale populatie in cell i. Which means that it, ceteris paribus, scales with population density"; 
 		attribute<float32> A_i     (i) := MakeDefined(A_i_raw, 0f);
 		
 		container X_asi := 
@@ -186,10 +187,10 @@ Container Reference_data
 				SexAgeClasses/name
 				, 'E_is/'+SexAgeClasses/Sex_rel -> name+' * E_ib/'+SexAgeClasses/BroadClasses_rel -> name+' * A_i * PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]'
 				, i
-				, float32
+				, Person
 			), Descr = "resulting population per SexAgeGroup in cell i (rebalanced by A_i from this iteration)"
 		{
-			attribute<float32> Total (i) := =AsList('X_asi/'+SexAgeClasses/name, '+'),
+			attribute<Person> Total (i) := =AsList('X_asi/'+SexAgeClasses/name, '+'),
 				Descr = "Sum of population per SexAgeGroup (rebalanced with A_i from this iteration); item not used in computations: debug purposes";
 		}
 		
