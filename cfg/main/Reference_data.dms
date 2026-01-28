@@ -3,7 +3,6 @@ Container Reference_data
 , Descr = "Procedures to generate reference 2011 base maps per narrow age class, with LAU2 census data, SEDAC grids, and additional local data for NL, SK and SI" 
 {
 	parameter<uint8>    NumberOfIterations        := 10b,           Descr = "Number of iterations for balancing assignment.";
-	unit<uint32>        Sex                       := /Classifications/Gender/woT;
 	parameter<float32>  ε                         := 0.00001f;
 	
 	
@@ -35,9 +34,9 @@ Container Reference_data
 		attribute<float32>  Share_GE65_LAU                  (r) := sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/GE65 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total;
 	
 	
-		attribute<float32>  P_r                 (r) := sum(P_i, i/r_rel);
-		attribute<float32>  Diff_Q_and_P        (r) := Q_asr/total -  P_r;
-		attribute<float32>  Diff_Q_and_P_ifany0 (r) := Q_asr/total == 0f || P_r == 0f ? Diff_Q_and_P : 0f;
+		attribute<float32>  P_r                             (r) := sum(P_i, i/r_rel); //debug
+		attribute<float32>  Diff_Q_and_P                    (r) := Q_asr/total -  P_r; //debug
+		attribute<float32>  Diff_Q_and_P_ifany0             (r) := Q_asr/total == 0f || P_r == 0f ? Diff_Q_and_P : 0f; //debug
 	}
 	
 	
@@ -97,8 +96,6 @@ Container Reference_data
 			// , float32
 		// );
 	
-	
-	
 	container Iters :=
 		for_each_ne(
 			Iter/name
@@ -124,7 +121,10 @@ Container Reference_data
 					, 'sum(X_asi/'+SexAgeClasses/name+', i/r_rel)'
 					, r
 					, float32
-				);
+				)
+			{
+				attribute<float32>  Total  (r) := = 'add('+AsItemList(SexAgeClasses/name)+')';
+			}
 				
 			container Diff_X_asr_Q_asr := 
 				for_each_nedv(
@@ -141,10 +141,16 @@ Container Reference_data
 			container Error_Distr_vs_Expected_Shares := 
 				for_each_nedv(
 					SexAgeClasses/name
-					, 'abs(sum(X_asi/'+SexAgeClasses/name+' , i/r_rel) / sum(X_asi/Total, i/r_rel) - Q_asr/'+SexAgeClasses/name+' / Q_asr/Total)'
+					, 'MakeDefined(abs(sum(X_asi/'+SexAgeClasses/name+' , i/r_rel) / sum(X_asi/Total, i/r_rel) - Q_asr/'+SexAgeClasses/name+' / Q_asr/Total), sum(X_asi/Total, i/r_rel) == 0f && Q_asr/Total == 0f ? 0f : 99f)'
 					, r
 					, float32
-				), Descr = "Error in distributed vs expected population shares";
+				), Descr = "Error in distributed vs expected population shares"
+			{
+				attribute<float32>       MinElem (r) := ='min_elem('+AsItemList(SexAgeClasses/name)+')';
+				attribute<SexAgeClasses> ArgMin  (r) := ='ArgMin('+AsItemList(SexAgeClasses/name)+')';
+				attribute<float32>       MaxElem (r) := ='max_elem('+AsItemList(SexAgeClasses/name)+')';
+				attribute<SexAgeClasses> ArgMax  (r) := ='ArgMax('+AsItemList(SexAgeClasses/name)+')';
+			}
 				
 			container Error_Abs_vs_Expected_Sizes := 
 				for_each_nedv(
@@ -170,7 +176,10 @@ Container Reference_data
 		container PrevIter := =PrevIterName;
 		///
 		
-		attribute<float32> A_i (i) := ='P_i / ('+AsList('E_is/'+SexAgeClasses/Sex_rel -> name+' * E_ib/'+SexAgeClasses/BroadClasses_rel -> name+' * PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]', '+')+')', Descr = "balancing factor, totale populatie in cell i. Which means that it, ceteris paribus, scales with population density"; 
+		attribute<float32> A_i_raw (i) := ='P_i / ('+AsList('E_is/'+SexAgeClasses/Sex_rel -> name+' 
+												* E_ib/'+SexAgeClasses/BroadClasses_rel -> name+' 
+												* PrevIter/B_asr/'+SexAgeClasses/name+'[i/r_rel]', '+')+')', Descr = "balancing factor, totale populatie in cell i. Which means that it, ceteris paribus, scales with population density"; 
+		attribute<float32> A_i     (i) := MakeDefined(A_i_raw, 0f);
 		
 		container X_asi := 
 			for_each_nedv(
@@ -197,7 +206,7 @@ Container Reference_data
 				, float32
 			), Descr = "Recalculated balancing factor SexAgeGroup in region r, used in next iteration"
 		{
-			attribute<float32> Total (r) := =AsList(''+SexAgeClasses/name, '+');
+			attribute<float32> Total      (r) := =AsList(''+SexAgeClasses/name, '+');
 			attribute<float32> Max_elem   (r) := ='max_elem('+AsList(''+SexAgeClasses/name, ',')+', ε)';
 		}
 		container B_asr := 
