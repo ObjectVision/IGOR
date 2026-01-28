@@ -33,17 +33,64 @@ Container Reference_data
 		attribute<Share>    Share_15_64_LAU                 (r) := (sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/_15_64 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total)[Share];
 		attribute<Share>    Share_GE65_LAU                  (r) := (sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/GE65 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total)[Share];
 	
-	
 		attribute<Person>   P_r                             (r) := sum(P_i, i/r_rel); //debug
-		attribute<Person>   Diff_Q_and_P                    (r) := Q_asr/total -  P_r; //debug
-		attribute<Person>   Diff_Q_and_P_ifany0             (r) := Q_asr/total == 0f || P_r == 0f ? Diff_Q_and_P : 0f; //debug
+		// attribute<Person>   Diff_Q_and_P                    (r) := Q_asr_Raw/total -  P_r; //debug
+		// attribute<Person>   Diff_Q_and_P_ifany0             (r) := Q_asr_Raw/total == 0f || P_r == 0f ? Diff_Q_and_P : 0f; //debug
+		
+		attribute<bool>     Qr_0_and_Pr_gt0                 (r) := impl/Q_asr_Raw/total == 0f && P_r > 0f; //issue #12
 	}
 	
+	container Impl
+	{
+		unit<UInt8> Iter := cat_range(1b, NumberOfIterations + 1b)
+		{
+			attribute<String> name        := 'Iter_'+string(id(.));
+			attribute<Bool>   IsFirstIter := id(.) == 1b;
+			attribute<String> PrevName    := IsFirstIter ? 'Iter_0' : name[id(.) - min_elem( id(.), 1b)];
+			attribute<String> Label       := name;
+		}
+	
+		container Q_asr_shares_based_on_NUTS3 := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, '((sum(Q_asr_Raw/'+SexAgeClasses/name+', r/NUTS3_rel) /  sum(Q_asr_Raw/total, r/NUTS3_rel))[Share])[r/NUTS3_rel]'
+				, r
+				, Share
+			), Descr = "Population per LAU region, split per SexAgeGroup";
+		
+		// container Q_s_shares := 
+			// for_each_nedv(
+				// Sex/name
+				// , '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/first_rel)+') / Q_asr/total'
+				// , r
+				// , Share
+			// );
+		
+		// container Q_b_shares := 
+			// for_each_nedv(
+				// BroadClasses/name
+				// , '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/BroadClasses_rel)+') / Q_asr/total'
+				// , r
+				// , Share
+			// );
+			
+		container Q_asr_RAW := 
+			for_each_nedv(
+				SexAgeClasses/name
+				, 'sum(Population/AGEGROUP5_SEX_perLAU/result/SexAgeClass_rel == SexAgeClasses/v/'+SexAgeClasses/name+' ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel)'
+				, r
+				, Person
+			), Descr = "Population per LAU region, split per SexAgeGroup"
+		{
+			attribute<Person>  Total  (r) := = 'add('+AsItemList(SexAgeClasses/name)+')';
+		}
+	}
 	
 	unit<uint32>        r                      := LAU
 	{
 		attribute<.> per_i (i) := ='per_domain_'+string(ModelParameters/Gridsize)+'m';
 	}
+	
 	unit<ipoint>        i                      := domain;
 	attribute<Person>   P_i                (i) := Ardeco, Descr = "Population per 1km gridcell i, based on ARDECO dataset";
 	
@@ -72,7 +119,7 @@ Container Reference_data
 	container Q_asr := 
 		for_each_nedv(
 			SexAgeClasses/name
-			, 'sum(Population/AGEGROUP5_SEX_perLAU/result/SexAgeClass_rel == SexAgeClasses/v/'+SexAgeClasses/name+' ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel)'
+			, 'Checks/Qr_0_and_Pr_gt0 ? Checks/P_r * impl/Q_asr_shares_based_on_NUTS3/'+SexAgeClasses/name+' : impl/Q_asr_RAW/'+SexAgeClasses/name+''
 			, r
 			, Person
 		), Descr = "Population per LAU region, split per SexAgeGroup"
@@ -80,26 +127,11 @@ Container Reference_data
 		attribute<Person>  Total  (r) := = 'add('+AsItemList(SexAgeClasses/name)+')';
 	}
 	
-	container Q_s_shares := 
-		for_each_nedv(
-			Sex/name
-			, '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/first_rel)+') / Q_asr/total'
-			, r
-			, Share
-		);
-	
-	container Q_b_shares := 
-		for_each_nedv(
-			BroadClasses/name
-			, '('+AsList('Q_asr/'+SexAgeClasses/name,'+', SexAgeClasses/BroadClasses_rel)+') / Q_asr/total'
-			, r
-			, Share
-		);
 	
 	container Iters :=
 		for_each_ne(
-			Iter/name
-			,'Iter_T('+quote(Iter/PrevName)+')'
+			Impl/Iter/name
+			,'Iter_T('+quote(Impl/Iter/PrevName)+')'
 		), Descr = ""
 	{
 		container Iter_0
@@ -114,7 +146,7 @@ Container Reference_data
 		}
 	}
 	
-	container Result := ='Iters/'+last(Iter/name)
+	container Result := ='Iters/'+last(Impl/Iter/name)
 	{
 		container X_asr := 
 			for_each_nedv(
@@ -162,13 +194,6 @@ Container Reference_data
 			), Descr = "Error in absolute vs expected population sizes";
 	}
 	
-	unit<UInt8> Iter := cat_range(1b, NumberOfIterations + 1b)
-	{
-		attribute<String> name        := 'Iter_'+string(id(.));
-		attribute<Bool>   IsFirstIter := id(.) == 1b;
-		attribute<String> PrevName    := IsFirstIter ? 'Iter_0' : name[id(.) - min_elem( id(.), 1b)];
-		attribute<String> Label       := name;
-	}
 
 	Template Iter_T
 	{
