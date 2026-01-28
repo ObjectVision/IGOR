@@ -9,9 +9,7 @@ container Geography : using = "units"
 		parameter<float32> LabelWorldSize  := 10f / 3600f, DialogType = "LabelWorldSize";
 		parameter<.>       TopLeft         := point_xy(2300000d, 5500000d, .);
 	}
-	unit<dpoint> LambertEA              := ='LambertEA_'+ModelParameters/StudyArea;
-	unit<dpoint> LambertEA_Nederland    := range(LambertEA_base, /SourceData/RegionalUnits/Country/subset/BoundingBox/bottom_left,  /SourceData/RegionalUnits/Country/subset/BoundingBox/top_right) {parameter<LambertEA_base> geometry (polygon):= geos_union_polygon(SourceData/RegionalUnits/Country/subset/geometry_base);}
-	unit<dpoint> LambertEA_EU           := range(LambertEA_base, /SourceData/RegionalUnits/Country/subset/BoundingBox/bottom_left,  /SourceData/RegionalUnits/Country/subset/BoundingBox/top_right) {parameter<LambertEA_base> geometry (polygon):= geos_union_polygon(SourceData/RegionalUnits/Country/subset/geometry_base);}
+	unit<dpoint> LambertEA              := ='impl/LambertEA_'+ModelParameters/StudyArea;
 
 	unit<uint32> selection_polygon : nrofrows = 1, Using = "units"
 	{
@@ -48,43 +46,94 @@ container Geography : using = "units"
 		
 		unit<uint32> result := selection_polygon;
 	}
- 
-	unit<ipoint> ProtoDomain :=
-		gridset(
-			range(LambertEA_base, point_xy(selection_polygon/Extent_EU/x_min, selection_polygon/Extent_EU/y_min, LambertEA_base), point_xy(selection_polygon/Extent_EU/x_max, selection_polygon/Extent_EU/y_max, LambertEA_base))// the baseunit in which the coordinates of the coordinate system are expressed
-			, point_yx(-1000d, 1000d, LambertEA_base) // the size of the grid cells in both X and Y directions, expressed in the base unit;
-			, LambertEA_base/TopLeft // the offset, the coordinates of the top left coordinate, expressed in the base unit;
-			, ipoint                              // the value type of the resulting domain unit (in earlier versions the value type was configured as string, this is not supported anymore)
-		);
-		
 	
-	parameter<ProtoDomain> TileSize   := Point_yx(1024i, 1024i, ProtoDomain);
-	parameter<ProtoDomain> TileOffset := Point_yx(   0i,    0i, ProtoDomain);
+	container impl
+	{
+		unit<dpoint> LambertEA_Nederland    := range(LambertEA_base, /SourceData/RegionalUnits/Country/subset/BoundingBox/bottom_left,  /SourceData/RegionalUnits/Country/subset/BoundingBox/top_right) {parameter<LambertEA_base> geometry (polygon):= geos_union_polygon(SourceData/RegionalUnits/Country/subset/geometry_base);}
+		unit<dpoint> LambertEA_EU           := range(LambertEA_base, /SourceData/RegionalUnits/Country/subset/BoundingBox/bottom_left,  /SourceData/RegionalUnits/Country/subset/BoundingBox/top_right) {parameter<LambertEA_base> geometry (polygon):= geos_union_polygon(SourceData/RegionalUnits/Country/subset/geometry_base);}
 
-	unit<spoint>  Tile := gridset(ProtoDomain, TileSize, TileOffset, spoint)
-	{
-		attribute<bool>         per_ProtoDomain (ProtoDomain) := poly2grid(LambertEA/geometry, ProtoDomain);
-		unit<uint64>            PD_StudyAreaSelection         := select_uint64_with_org_rel(per_ProtoDomain);
-		attribute<ProtoDomain>  LB                            := min(PD_StudyAreaSelection/org_rel, PD_StudyAreaSelection/org_rel[.]);
-		attribute<ProtoDomain>  UB                            := max(PD_StudyAreaSelection/org_rel, PD_StudyAreaSelection/org_rel[.])+point_yx(1i, 1i);
-		attribute<bool>         HasStudyArea                  := any(per_ProtoDomain, ProtoDomain_rel);
-		attribute<.>            ProtoDomain_rel (ProtoDomain) := mapping(ProtoDomain, .);
+		unit<ipoint> ProtoDomain_100m :=
+			gridset(
+				range(LambertEA_base, point_xy(selection_polygon/Extent_EU/x_min, selection_polygon/Extent_EU/y_min, LambertEA_base), point_xy(selection_polygon/Extent_EU/x_max, selection_polygon/Extent_EU/y_max, LambertEA_base))// the baseunit in which the coordinates of the coordinate system are expressed
+				, point_yx(-100d, 100d, LambertEA_base) // the size of the grid cells in both X and Y directions, expressed in the base unit;
+				, LambertEA_base/TopLeft // the offset, the coordinates of the top left coordinate, expressed in the base unit;
+				, ipoint                              // the value type of the resulting domain unit (in earlier versions the value type was configured as string, this is not supported anymore)
+			);
+			
+		unit<ipoint> ProtoDomain_1000m :=
+			gridset(
+				range(LambertEA_base, point_xy(selection_polygon/Extent_EU/x_min, selection_polygon/Extent_EU/y_min, LambertEA_base), point_xy(selection_polygon/Extent_EU/x_max, selection_polygon/Extent_EU/y_max, LambertEA_base))// the baseunit in which the coordinates of the coordinate system are expressed
+				, point_yx(-1000d, 1000d, LambertEA_base) // the size of the grid cells in both X and Y directions, expressed in the base unit;
+				, LambertEA_base/TopLeft // the offset, the coordinates of the top left coordinate, expressed in the base unit;
+				, ipoint                              // the value type of the resulting domain unit (in earlier versions the value type was configured as string, this is not supported anymore)
+			);
+	
+		parameter<ProtoDomain_100m>  TileSize_100m    := Point_yx(1024i, 1024i, ProtoDomain_100m);
+		parameter<ProtoDomain_100m>  TileOffset_100m  := Point_yx(   0i,    0i, ProtoDomain_100m);
+		parameter<ProtoDomain_1000m> TileSize_1000m   := Point_yx(1024i, 1024i, ProtoDomain_1000m);
+		parameter<ProtoDomain_1000m> TileOffset_1000m := Point_yx(   0i,    0i, ProtoDomain_1000m);
+
+		unit<spoint>  Tile_100m := gridset(ProtoDomain_100m, TileSize_100m, TileOffset_100m, spoint)
+		{
+			attribute<bool>              per_ProtoDomain_100m (ProtoDomain_100m) := poly2grid(LambertEA/geometry, ProtoDomain_100m);
+			unit<uint64>                 PD_StudyAreaSelection                   := select_uint64_with_org_rel(per_ProtoDomain_100m);
+			attribute<ProtoDomain_100m>  LB                                      := min(PD_StudyAreaSelection/org_rel, PD_StudyAreaSelection/org_rel[.]);
+			attribute<ProtoDomain_100m>  UB                                      := max(PD_StudyAreaSelection/org_rel, PD_StudyAreaSelection/org_rel[.])+point_yx(1i, 1i);
+			attribute<bool>              HasStudyArea                            := any(per_ProtoDomain_100m, ProtoDomain_100m_rel);
+			attribute<.>                 ProtoDomain_100m_rel (ProtoDomain_100m) := mapping(ProtoDomain_100m, .);
+		}
+		unit<spoint>  Tile_1000m := gridset(ProtoDomain_1000m, TileSize_1000m, TileOffset_1000m, spoint)
+		{
+			attribute<bool>               per_ProtoDomain_1000m (ProtoDomain_1000m) := poly2grid(LambertEA/geometry, ProtoDomain_1000m);
+			unit<uint64>                  PD_StudyAreaSelection                     := select_uint64_with_org_rel(per_ProtoDomain_1000m);
+			attribute<ProtoDomain_1000m>  LB                                        := min(PD_StudyAreaSelection/org_rel, PD_StudyAreaSelection/org_rel[.]);
+			attribute<ProtoDomain_1000m>  UB                                        := max(PD_StudyAreaSelection/org_rel, PD_StudyAreaSelection/org_rel[.])+point_yx(1i, 1i);
+			attribute<bool>               HasStudyArea                              := any(per_ProtoDomain_1000m, ProtoDomain_1000m_rel);
+			attribute<.>                  ProtoDomain_1000m_rel (ProtoDomain_1000m) := mapping(ProtoDomain_1000m, .);
+		}
+		
+		unit<uint32> StudyAreaTile_100m := select_with_org_rel(Tile_100m/HasStudyArea)
+		{
+			attribute<ProtoDomain_100m>  LB     := Tile_100m/LB[org_rel];
+			attribute<ProtoDomain_100m>  UB     := Tile_100m/UB[org_rel];
+			attribute<int32>             LB_X := pointcol(LB);
+			attribute<int32>             LB_y := pointrow(LB);
+			attribute<int32>             UB_X := pointcol(UB);
+			attribute<int32>             UB_y := pointrow(UB);
+		} 
+		unit<uint32> StudyAreaTile_1000m := select_with_org_rel(Tile_1000m/HasStudyArea)
+		{
+			attribute<ProtoDomain_1000m> LB     := Tile_1000m/LB[org_rel];
+			attribute<ProtoDomain_1000m> UB     := Tile_1000m/UB[org_rel];
+			attribute<int32>             LB_X := pointcol(LB);
+			attribute<int32>             LB_y := pointrow(LB);
+			attribute<int32>             UB_X := pointcol(UB);
+			attribute<int32>             UB_y := pointrow(UB);
+		} 
+	
+		unit<ipoint> domain_100m := TiledUnit(StudyAreaTile_100m/LB, StudyAreaTile_100m/UB)
+		{
+			attribute<LambertEA>                    geometry          := id(.)[LambertEA] + point_xy(0.5 * 100d,0.5 * 100d, LambertEA), LazyCalculated = "True", Dialogdata = "LambertEA";
+			attribute<SourceData/RegionalUnits/LAU> LAU_rel           := SourceData/RegionalUnits/LAU/per_domain_100m;
+			attribute<SourceData/RegionalUnits/LAU> r_rel             := LAU_rel;
+			
+			attribute<.>                            domain_100m_rel   := mapping(., domain_100m);
+			attribute<domain_1000m>                 domain_1000m_rel  := mapping(., domain_1000m);
+			
+			attribute<uint64>                       NrOf100mCellsPerCell := pcount(domain_100m_rel);
+		}
+		unit<ipoint> domain_1000m := TiledUnit(StudyAreaTile_1000m/LB, StudyAreaTile_1000m/UB)
+		{
+			attribute<LambertEA>                    geometry       := id(.)[LambertEA] + point_xy(0.5 * 1000d,0.5 * 1000d, LambertEA), LazyCalculated = "True", Dialogdata = "LambertEA";
+			attribute<SourceData/RegionalUnits/LAU> LAU_rel        := SourceData/RegionalUnits/LAU/per_domain_1000m;
+			attribute<SourceData/RegionalUnits/LAU> r_rel          := LAU_rel;
+			
+			// attribute<domain_100m>                  domain_100m_rel   := mapping(., domain_100m);
+			attribute<.>                            domain_1000m_rel  := mapping(., domain_1000m);
+			
+			attribute<uint64>                       NrOf100mCellsPerCell := pcount(domain_100m/domain_1000m_rel);
+		}
 	}
 	
-	unit<uint32> StudyAreaTile := select_with_org_rel(Tile/HasStudyArea)
-	{
-		attribute<ProtoDomain>      LB     := Tile/LB[org_rel];
-		attribute<ProtoDomain>      UB     := Tile/UB[org_rel];
-		attribute<int32>            LB_X := pointcol(LB);
-		attribute<int32>            LB_y := pointrow(LB);
-		attribute<int32>            UB_X := pointcol(UB);
-		attribute<int32>            UB_y := pointrow(UB);
-	} 
-	
-	unit<ipoint> domain := TiledUnit(StudyAreaTile/LB, StudyAreaTile/UB)
-	{
-		attribute<LambertEA>                    geometry       := id(.)[LambertEA] + point_xy(0.5 * 1000d,0.5 * 1000d, LambertEA), LazyCalculated = "True", Dialogdata = "LambertEA";
-		attribute<SourceData/RegionalUnits/LAU> LAU_rel        := SourceData/RegionalUnits/LAU/per_domain;
-		attribute<SourceData/RegionalUnits/LAU> r_rel        :=LAU_rel;
-	}
+	unit<ipoint> domain := ='impl/domain_'+string(ModelParameters/Gridsize)+'m';
 }

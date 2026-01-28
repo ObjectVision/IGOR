@@ -1,5 +1,5 @@
 container SourceData 
-: Using = "Geography;Units;Classifications"
+: Using = "Geography;Units;Classifications;Geography/impl"
 {
 	#include<RegionalUnits.dms>
 
@@ -18,8 +18,8 @@ container SourceData
 		, LazyCalculated = "true"
 		{
 			attribute<uint32>  GridData;
-			attribute<uint32>  ReadData       (domain);
-			attribute<uint16>  Data           (domain) := uint16(ReadData);
+			attribute<uint32>  ReadData             (domain);
+			attribute<float32> Data                 (domain) := float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]);
 		}
 		
 		unit<ipoint> ESTAT_Male
@@ -32,8 +32,9 @@ container SourceData
 		, LazyCalculated = "true"
 		{
 			attribute<float32> GridData;
-			attribute<float32> ReadData (domain);
-			attribute<uint16>  Data           (domain) := uint16(ReadData);
+			attribute<float32> ReadData       (domain);
+			// attribute<uint16>  Data           (domain) := uint16(ReadData);
+			attribute<float32> Data           (domain) := ModelParameters/Gridsize == 100d ? float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]) : float32(ReadData);
 		}
 
 		unit<ipoint> ESTAT_Female
@@ -47,7 +48,8 @@ container SourceData
 		{
 			attribute<float32> GridData;
 			attribute<float32> ReadData (domain);
-			attribute<uint16>  Data           (domain) := uint16(ReadData);
+			// attribute<uint16>  Data           (domain) := uint16(ReadData);
+			attribute<float32> Data           (domain) := ModelParameters/Gridsize == 100d ? float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]) : float32(ReadData);
 		}
 		
 		unit<ipoint> ESTAT_LT15
@@ -61,7 +63,7 @@ container SourceData
 		{
 			attribute<float32> GridData;
 			attribute<float32> ReadData (domain);
-			attribute<uint16>  Data           (domain) := uint16(ReadData);
+			attribute<float32> Data           (domain) := ModelParameters/Gridsize == 100d ? float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]) : float32(ReadData);
 		}
 		
 		unit<ipoint> ESTAT_15_64
@@ -75,7 +77,7 @@ container SourceData
 		{
 			attribute<float32> GridData;
 			attribute<float32> ReadData (domain);
-			attribute<uint16>  Data           (domain) := uint16(ReadData);
+			attribute<float32> Data           (domain) := ModelParameters/Gridsize == 100d ? float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]) : float32(ReadData);
 		}
 		unit<ipoint> ESTAT_GE65
 		: StorageName = "='%IGOR_DataDir%/Population/ESTAT_OBS-VALUE-Y_GE65_'+ModelParameters/PopYear+'_V2.tiff'"
@@ -88,7 +90,7 @@ container SourceData
 		{
 			attribute<float32> GridData;
 			attribute<float32> ReadData (domain);
-			attribute<uint16>  Data           (domain) := uint16(ReadData);
+			attribute<float32> Data           (domain) := ModelParameters/Gridsize == 100d ? float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]) : float32(ReadData);
 		}
 		
 		container AGEGROUP5_SEX_perLAU
@@ -123,9 +125,7 @@ container SourceData
 					)'
 					,domain
 					,string
-				)
-			{
-			}
+				);
 			
 			unit<uint32> Result := domain
 			{
@@ -137,12 +137,10 @@ container SourceData
 				
 				attribute<string>    SexAgeClass_name := Sex+'_'+AgeGroup;
 				
-				attribute<SexAgeClasses> SexAgeClass_rel   := rlookup(SexAgeClass_name, SexAgeClasses/name);
-				attribute<Gender/woT>    SexClass_rel      := rlookup(Sex, Gender/woT/name);
-				attribute<AgeClasses>    AgeClass_rel      := rlookup(AgeGroup, AgeClasses/label);
-				attribute<BroadClasses>  BroadAgeClass_rel := AgeClasses/BroadClasses_rel[AgeClass_rel];
-				
-				
+				attribute<SexAgeClasses>       SexAgeClass_rel   := rlookup(SexAgeClass_name, SexAgeClasses/name);
+				attribute<Classifications/Sex> SexClass_rel      := rlookup(Sex, Classifications/Sex/name);
+				attribute<AgeClasses>          AgeClass_rel      := rlookup(AgeGroup, AgeClasses/label);
+				attribute<BroadClasses>        BroadAgeClass_rel := AgeClasses/BroadClasses_rel[AgeClass_rel];
 			}
 		}
 	}

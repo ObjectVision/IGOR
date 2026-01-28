@@ -11,10 +11,11 @@ container IGOR : IntegrityCheck = "GeoDMSVersion() >= 18.0101" // format 17.1.2 
 	
 	container ModelParameters
 	{
+		parameter<float64>  Gridsize                       := 100d;
 		parameter<string>   PopVersie                      := 'Ardeco'; 
 		parameter<string>   PopYear                        := '2021'; 
-		parameter<bool>     Use_Country_selection          := FALSE; 
 		parameter<string>   StudyArea                      := 'EU'; //in local language; Nederland EU
+		parameter<bool>     Use_Country_selection          := StudyArea != 'EU'; 
 	}
 	
 	#include<Units.dms>

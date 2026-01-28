@@ -94,7 +94,8 @@ container RegionalUnits : Using = "Geography;"
 		unit<uint32> StudyArea := =ModelParameters/Use_Country_selection ? 'select_with_org_rel(IsStudyArea && IsContinentalEU)' : 'select_with_org_rel(IsContinentalEU)'
 		{
 			attribute<LambertEA>   geometry     (poly) := ../geometry[org_rel];
-			attribute<.>           per_domain (domain) := poly2grid(geometry, domain);
+			attribute<.>           per_domain_100m   (Geography/impl/domain_100m) := poly2grid(geometry, Geography/impl/domain_100m);
+			attribute<.>           per_domain_1000m (Geography/impl/domain_1000m) := poly2grid(geometry, Geography/impl/domain_1000m);
 			attribute<string>      GISCO_ID            := ../GISCO_ID[org_rel];
 		}
 	}
