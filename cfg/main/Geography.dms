@@ -116,6 +116,8 @@ container Geography : using = "units"
 			attribute<LambertEA>                    geometry          := id(.)[LambertEA] + point_xy(0.5 * 100d,0.5 * 100d, LambertEA), LazyCalculated = "True", Dialogdata = "LambertEA";
 			attribute<SourceData/RegionalUnits/LAU> LAU_rel           := SourceData/RegionalUnits/LAU/per_domain_100m;
 			attribute<SourceData/RegionalUnits/LAU> r_rel             := LAU_rel;
+			attribute<bool>                         study_area        := AND(reference_data/p_i > 0.0f, IsDefined(r_rel));
+			attribute<SourceData/RegionalUnits/LAU> r_rel_in_sa       := study_area ? r_rel : null_u;
 			
 			attribute<.>                            domain_100m_rel   := mapping(., domain_100m);
 			attribute<domain_1000m>                 domain_1000m_rel  := mapping(., domain_1000m);
@@ -129,9 +131,11 @@ container Geography : using = "units"
 			attribute<SourceData/RegionalUnits/LAU> r_rel          := LAU_rel;
 			
 			// attribute<domain_100m>                  domain_100m_rel   := mapping(., domain_100m);
-			attribute<.>                            domain_1000m_rel  := mapping(., domain_1000m);
+			attribute<.>                           domain_1000m_rel  := mapping(., domain_1000m);
 			
-			attribute<uint64>                       NrOf100mCellsPerCell := pcount(domain_100m/domain_1000m_rel);
+			attribute<uint8>                       NrOf100mCellsPerCell := pcount_uint8(domain_100m/domain_1000m_rel);
+			attribute<uint8>                       NrOfRegionsPerCell   := unique_count_uint8(domain_100m/r_rel_in_sa, domain_100m/domain_1000m_rel);
+			attribute<bool>                        IsBorderLiner     := NrOfRegionsPerCell > 1b;
 		}
 	}
 	
