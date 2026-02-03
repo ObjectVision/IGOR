@@ -117,23 +117,52 @@ container Geography : using = "units"
 			attribute<SourceData/RegionalUnits/LAU> LAU_rel           := SourceData/RegionalUnits/LAU/per_domain_100m;
 			attribute<SourceData/RegionalUnits/LAU> r_rel             := LAU_rel;
 			
+			attribute<bool>                         in_study_area     := AND(reference_data/p_p > 0.0f, IsDefined(r_rel));
+			attribute<SourceData/RegionalUnits/LAU> r_rel_in_sa       := in_study_area ? r_rel : null_u;
+			
 			attribute<.>                            domain_100m_rel   := mapping(., domain_100m);
 			attribute<domain_1000m>                 domain_1000m_rel  := mapping(., domain_1000m);
 			
 			attribute<uint64>                       NrOf100mCellsPerCell := pcount(domain_100m_rel);
+			
+			attribute<uint64>                       domain_key := uint64(r_rel_in_sa) * uint64(domain_1000m/NrCells) + uint64(domain_1000m_rel->Ordinal);
+			attribute<domain>                       domain_rel := rlookup(domain_key, domain/values);
+			
 		}
 		unit<ipoint> domain_1000m := TiledUnit(StudyAreaTile_1000m/LB, StudyAreaTile_1000m/UB)
 		{
+			parameter<int32>                       FirstCol := min(pointcol(StudyAreaTile_1000m/LB));
+			parameter<int32>                       LastCol  := max(pointcol(StudyAreaTile_1000m/UB));
+			parameter<uint32>                      NrCols   := 1+uint32(LastCol-FirstCol);
+			parameter<int32>                       FirstRow := min(pointrow(StudyAreaTile_1000m/LB));
+			parameter<int32>                       LastRow  := max(pointrow(StudyAreaTile_1000m/UB));
+			parameter<uint32>                      NrRows   := 1+uint32(LastRow-FirstRow);
+			parameter<uint32>                      NrCells := NrRows * NrCols;
+			
+			attribute<uint32>                       Ordinal := uint32(pointrow(ID(.)) -FirstRow) * NrCols + uint32(pointcol(ID(.))-FirstCol);
+			
 			attribute<LambertEA>                    geometry       := id(.)[LambertEA] + point_xy(0.5 * 1000d,0.5 * 1000d, LambertEA), LazyCalculated = "True", Dialogdata = "LambertEA";
 			attribute<SourceData/RegionalUnits/LAU> LAU_rel        := SourceData/RegionalUnits/LAU/per_domain_1000m;
 			attribute<SourceData/RegionalUnits/LAU> r_rel          := LAU_rel;
 			
 			// attribute<domain_100m>                  domain_100m_rel   := mapping(., domain_100m);
-			attribute<.>                            domain_1000m_rel  := mapping(., domain_1000m);
+			attribute<.>                           domain_1000m_rel  := mapping(., domain_1000m);
 			
-			attribute<uint64>                       NrOf100mCellsPerCell := pcount(domain_100m/domain_1000m_rel);
+			attribute<uint8>                       NrOf100mCellsPerCell := pcount_uint8(domain_100m/domain_1000m_rel);
+			attribute<uint8>                       NrOfRegionsPerCell   := unique_count_uint8(domain_100m/r_rel_in_sa, domain_100m/domain_1000m_rel);
+			attribute<bool>                        IsBorderLiner     := NrOfRegionsPerCell > 1b;
 		}
 	}
 	
-	unit<ipoint> domain := ='impl/domain_'+string(ModelParameters/Gridsize)+'m';
+	unit<ipoint> domain_grid := ='impl/domain_'+string(ModelParameters/Gridsize)+'m';
+	unit<uint32> domain := unique_uint32(impl/domain_100m/domain_key), DialogType = "Map", DialogData = "per_100mgrid"
+	{
+		attribute<SourceData/RegionalUnits/LAU> r_rel_in_sa := value(values / uint64(impl/domain_1000m/NrCells), SourceData/RegionalUnits/LAU);
+		attribute<uint32> ordinal := uint32(values % uint64(impl/domain_1000m/NrCells));
+		attribute<impl/domain_1000m> domain_1000m_rel := rlookup(ordinal, impl/domain_1000m/ordinal); // TODO: Optimize by disentangling row and col values
+		
+		attribute<.> per_100mgrid(impl/domain_100m) := impl/domain_100m/domain_rel;
+	}
+//	unit<ipoint> domain := ='impl/domain_'+string(ModelParameters/Gridsize)+'m';
+	
 }
