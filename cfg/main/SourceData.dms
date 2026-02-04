@@ -18,8 +18,8 @@ container SourceData
 		, LazyCalculated = "true"
 		{
 			attribute<uint32>  GridData;
-			attribute<uint32>  ReadData             (domain);
-			attribute<Person>  Data     (domain) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
+			attribute<uint32>  ReadData (domain_grid);
+			attribute<Person>  Data     (domain_grid) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
 		}
 		
 		unit<ipoint> ESTAT_Male
@@ -32,8 +32,8 @@ container SourceData
 		, LazyCalculated = "true"
 		{
 			attribute<float32> GridData;
-			attribute<float32> ReadData       (domain);
-			attribute<Person>  Data     (domain) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
+			attribute<Person> ReadData       (domain_1000m);
+			attribute<Person>  Data     (domain_1000m) := max_elem(ReadData, 0[Person]); //=ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
 		}
 
 		unit<ipoint> ESTAT_Female
@@ -46,8 +46,8 @@ container SourceData
 		, LazyCalculated = "true"
 		{
 			attribute<float32> GridData;
-			attribute<float32> ReadData (domain);
-			attribute<Person>  Data     (domain) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
+			attribute<Person> ReadData       (domain_1000m);
+			attribute<Person>  Data     (domain_1000m) := max_elem(ReadData, 0[Person]); // =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
 		}
 		
 		unit<ipoint> ESTAT_LT15
@@ -60,8 +60,8 @@ container SourceData
 		, LazyCalculated = "true"
 		{
 			attribute<float32> GridData;
-			attribute<float32> ReadData (domain);
-			attribute<Person>  Data     (domain) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
+			attribute<Person> ReadData       (domain_1000m);
+			attribute<Person>  Data     (domain_1000m) := max_elem(ReadData, 0[Person]); //=ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
 		}
 		
 		unit<ipoint> ESTAT_15_64
@@ -74,8 +74,8 @@ container SourceData
 		, LazyCalculated = "true"
 		{
 			attribute<float32> GridData;
-			attribute<float32> ReadData (domain);
-			attribute<Person>  Data     (domain) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
+			attribute<Person> ReadData       (domain_1000m);
+			attribute<Person>  Data     (domain_1000m) := max_elem(ReadData, 0[Person]); //=ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
 		}
 		unit<ipoint> ESTAT_GE65
 		: StorageName = "='%IGOR_DataDir%/Population/ESTAT_OBS-VALUE-Y_GE65_'+ModelParameters/PopYear+'_V2.tiff'"
@@ -87,8 +87,8 @@ container SourceData
 		, LazyCalculated = "true"
 		{
 			attribute<float32> GridData;
-			attribute<float32> ReadData (domain);
-			attribute<Person>  Data     (domain) := =ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
+			attribute<Person> ReadData       (domain_1000m);
+			attribute<Person>  Data     (domain_1000m) := max_elem(ReadData, 0[Person]); //=ModelParameters/Gridsize == 100d ? '(float32(ReadData) / float32(domain_1000m/NrOf100mCellsPerCell[domain_100m/domain_1000m_rel]))[Person]' : 'float32(ReadData)[Person]';
 		}
 		
 		container AGEGROUP5_SEX_perLAU

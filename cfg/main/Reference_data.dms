@@ -4,29 +4,29 @@ Container Reference_data
 {
 	parameter<uint8>    NumberOfIterations        := 10b,           Descr = "Number of iterations for balancing assignment.";
 	parameter<float32>  ε                         := 0.00001f;
-	
-	
-	attribute<Person>  Ardeco           (domain) := Population/Ardeco/data;
-	attribute<Person>  ESTAT_M          (domain) := max_elem(Population/ESTAT_Male/data  , ε);
-	attribute<Person>  ESTAT_F          (domain) := max_elem(Population/ESTAT_Female/data, ε);
-	attribute<Person>  ESTAT_LT15       (domain) := max_elem(Population/ESTAT_LT15/data  , ε);
-	attribute<Person>  ESTAT_15_64      (domain) := max_elem(Population/ESTAT_15_64/data , ε);
-	attribute<Person>  ESTAT_GE65       (domain) := max_elem(Population/ESTAT_GE65/data  , ε);
-	
-	attribute<Person>  ESTAT_Total_Sex  (domain) := ESTAT_M + ESTAT_F;
-	attribute<Person>  ESTAT_Total_Age  (domain) := ESTAT_LT15 + ESTAT_15_64 + ESTAT_GE65;
 
-	attribute<Share>   Share_M          (domain) := MakeDefined(ESTAT_M   / ESTAT_Total_Sex, 1f)[Share];
-	attribute<Share>   Share_F          (domain) := 1f - Share_M;
-	attribute<Share>   Share_LT15       (domain) := (ESTAT_LT15   / ESTAT_Total_Age)[Share];
-	attribute<Share>   Share_15_64      (domain) := (ESTAT_15_64  / ESTAT_Total_Age)[Share];
-	attribute<Share>   Share_GE65       (domain) := (ESTAT_GE65   / ESTAT_Total_Age)[Share];
+	attribute<Person>  Ardeco           (p) := Population/Ardeco/data;
+	attribute<Person>  ESTAT_M          (e) := max_elem(Population/ESTAT_Male/data  , ε);
+	attribute<Person>  ESTAT_F          (e) := max_elem(Population/ESTAT_Female/data, ε);
+	attribute<Person>  ESTAT_LT15       (e) := max_elem(Population/ESTAT_LT15/data  , ε);
+	attribute<Person>  ESTAT_15_64      (e) := max_elem(Population/ESTAT_15_64/data , ε);
+	attribute<Person>  ESTAT_GE65       (e) := max_elem(Population/ESTAT_GE65/data  , ε);
+	
+	attribute<Person>  ESTAT_Total_Sex  (e) := ESTAT_M + ESTAT_F;
+	attribute<Person>  ESTAT_Total_Age  (e) := ESTAT_LT15 + ESTAT_15_64 + ESTAT_GE65;
+
+	attribute<Share>   Share_M          (e) := MakeDefined(ESTAT_M   / ESTAT_Total_Sex, 1f)[Share];
+	attribute<Share>   Share_F          (e) := 1f - Share_M;
+	attribute<Share>   Share_LT15       (e) := (ESTAT_LT15   / ESTAT_Total_Age)[Share];
+	attribute<Share>   Share_15_64      (e) := (ESTAT_15_64  / ESTAT_Total_Age)[Share];
+	attribute<Share>   Share_GE65       (e) := (ESTAT_GE65   / ESTAT_Total_Age)[Share];
 	
 	
 	container Checks
 	{
-		attribute<bool>     ESTAT_Sex_0_and_with_ARDECO_pop (i) := ESTAT_Total_Sex < 1f && P_i > 0f;
-		attribute<bool>     ESTAT_Age_0_and_with_ARDECO_pop (i) := ESTAT_Total_Age < 1f && P_i > 0f;
+		attribute<bool>     ESTAT_Sex_0_and_with_ARDECO_pop (e) := ESTAT_Total_Sex < 1f && P_e > 0f;
+		attribute<bool>     ESTAT_Age_0_and_with_ARDECO_pop (e) := ESTAT_Total_Age < 1f && P_e > 0f;
+		
 		attribute<Share>    Share_M_LAU                     (r) := (sum(Population/AGEGROUP5_SEX_perLAU/result/SexClass_rel == Sex/v/M ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total)[Share];
 		attribute<Share>    Share_F_LAU                     (r) := 1f - Share_M_LAU;
 		attribute<Share>    Share_LT15_LAU                  (r) := (sum(Population/AGEGROUP5_SEX_perLAU/result/BroadAgeClass_rel == BroadClasses/v/LT15 ? Population/AGEGROUP5_SEX_perLAU/result/pop : 0f, Population/AGEGROUP5_SEX_perLAU/result/LAU_rel) / Q_asr/Total)[Share];
@@ -86,18 +86,34 @@ Container Reference_data
 		}
 	}
 	
-	unit<uint32>        r                      := LAU
+	unit<ipoint>        p                      := domain_100m, Descr = "possible domain of population maps"
 	{
-		attribute<.> per_i (i) := ='per_domain_'+string(ModelParameters/Gridsize)+'m';
+		attribute<i> i_rel := p/domain_rel;
+	}
+	unit<ipoint>        e                      := domain_1000m, Descr = "domain of ESTAT population characterisation";
+	
+	unit<uint32>        i                      := domain, Descr ="domain for which IPF is done, an grouping of p, and relating to r and e"
+	{
+		attribute<r> r_rel := domain/r_rel_in_sa;
+		attribute<e> e_rel := domain/domain_1000m_rel;
 	}
 	
-	unit<ipoint>        i                      := domain;
-	attribute<Person>   P_i                (i) := Ardeco, Descr = "Population per 1km gridcell i, based on ARDECO dataset";
+	unit<uint32>        r                      := LAU, Descr = "domain of LAU population pyramid data"
+	{
+		attribute<.> per_p (p) := per_domain_100m;
+		attribute<.> per_i (i) := i/r_rel;
+	}
+	
+	attribute<Person>   P_p                (p) := Ardeco, Descr = "Population per 100m gridcell i, based on ARDECO dataset";
+	attribute<Person>   P_i                (i) := sum(P_p, p/i_rel), Descr = "Population aggregated form 100m gridcell, per IPF unit";
+	attribute<Person>   P_e                (e) := sum(P_i, i/e_rel), Descr = "Population per 1km block, based on ARDECO dataset and study area";
+	attribute<Person>   P_ee               (e) := sum(P_p, mapping(p, e)), Descr = "Population per 1km block, based on ARDECO dataset without considering LAU regions and study area";
+	attribute<Person>   delta_P            (e) := P_ee - P_e;
 	
 	container E_ib := 
 		for_each_nedv(
 			BroadClasses/name
-			, 'Checks/ESTAT_Age_0_and_with_ARDECO_pop ? Checks/Share_'+BroadClasses/label+'_LAU[r/per_i] : Share_'+BroadClasses/label
+			, 'Checks/ESTAT_Age_0_and_with_ARDECO_pop[i/e_rel] ? Checks/Share_'+BroadClasses/label+'_LAU[r/per_i] : Share_'+BroadClasses/label+'[i/e_rel]'
 			, i
 			, Share
 		), Descr = "Population per 1 km gridcell i, per BroadAgeGroup, based on ESTAT dataset" 
@@ -108,7 +124,7 @@ Container Reference_data
 	container E_is := 
 		for_each_nedv(
 			Sex/name
-			, 'Checks/ESTAT_Sex_0_and_with_ARDECO_pop ? Checks/Share_'+Sex/name+'_LAU[r/per_i] : Share_'+Sex/name
+			, 'Checks/ESTAT_Sex_0_and_with_ARDECO_pop[i/e_rel] ? Checks/Share_'+Sex/name+'_LAU[r/per_i] : Share_'+Sex/name+'[i/e_rel]'
 			, i
 			, Share
 		), Descr = "Population per 1 km gridcell i, per sex, based on ESTAT dataset" 
