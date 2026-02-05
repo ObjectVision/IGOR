@@ -209,7 +209,29 @@ Container Reference_data
 				, Person
 			), Descr = "Error in absolute vs expected population sizes";
 	}
-	
+	container StoreResults {
+		
+		parameter<bool> button:= True, explicitsuppliers = "abs_pop_1km;rel_pop_1km;";
+			
+		container abs_pop_1km:= for_each_nedvat(
+			SexAgeClasses/name
+			, 'sum(Result/X_asi/'+SexAgeClasses/name+'[float32], i/e_rel)'
+			, e, float32
+			, ModelParameters/store_path+SexAgeClasses/name+'.tif'
+			, 'gdalwrite.grid'
+			)
+		{
+			attribute<float32> total (e):= sum(Result/X_asi/Total[float32], i/e_rel), storagename = "= ModelParameters/store_path+'Total.tif'", storagetype = "gdalwrite.grid";
+		}
+		container rel_pop_1km:= for_each_nedvat(
+			SexAgeClasses/name
+			, 'makedefined(abs_pop_1km/'+SexAgeClasses/name+' / abs_pop_1km/Total, 0f)'
+			, e, float32
+			, ModelParameters/store_path+'rel/'+SexAgeClasses/name+'.tif'
+			, 'gdalwrite.grid'
+			);
+		
+	}
 
 	Template Iter_T
 	{

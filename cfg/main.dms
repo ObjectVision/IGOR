@@ -14,6 +14,8 @@ container IGOR : IntegrityCheck = "GeoDMSVersion() >= 18.0101" // format 17.1.2 
 		parameter<float64>  Gridsize                       := 100d;
 		parameter<string>   PopVersie                      := 'Ardeco'; 
 		parameter<string>   PopYear                        := '2021'; 
+		parameter<string>   suffix						   := '_x0';
+		parameter<string>   store_path					   := '%LocalDataProjDir%/reference/'+StudyArea+'_'+PopVersie+'_'+PopYear+'_'+string(Gridsize)+suffix+'/';
 		parameter<string>   StudyArea                      := 'EU'; //in local language; Nederland EU
 		parameter<bool>     Use_Country_selection          := StudyArea != 'EU'; 
 	}
