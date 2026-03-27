@@ -141,7 +141,8 @@ container Geography : using = "units"
 			
 			attribute<uint32>                       Ordinal := uint32(pointrow(ID(.)) -FirstRow) * NrCols + uint32(pointcol(ID(.))-FirstCol);
 			
-			attribute<LambertEA>                    geometry       := id(.)[LambertEA] + point_xy(0.5 * 1000d,0.5 * 1000d, LambertEA), LazyCalculated = "True", Dialogdata = "LambertEA";
+			//attribute<LambertEA>                    geometry       := id(.)[LambertEA] + point_xy(0.5 * 1000d,0.5 * 1000d, LambertEA), LazyCalculated = "True", Dialogdata = "LambertEA";
+			attribute<LambertEA>                    geometry       := id(.)[LambertEA] + (point_xy(0.5d,0.5d, LambertEA) * getprojectionfactor(.)), LazyCalculated = "True", Dialogdata = "LambertEA";
 			attribute<SourceData/RegionalUnits/LAU> LAU_rel        := SourceData/RegionalUnits/LAU/per_domain_1000m;
 			attribute<SourceData/RegionalUnits/LAU> r_rel          := LAU_rel;
 			

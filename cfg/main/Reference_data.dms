@@ -232,7 +232,9 @@ Container Reference_data
 			);
 		
 	}
-
+	
+	#include<adhoc_reporting.dms>
+	
 	Template Iter_T
 	{
 		parameter<string> PrevIterName;

@@ -1,0 +1,237 @@
+container adhoc_reporting
+: descr = "Ad hoc module to generate country and degurba specific reports on age distribution. To be used as gradient inputs for global population downscaling."
+{
+	
+	unit<uint32> all_countries:= /SourceData/RegionalUnits/Country 
+	{
+		attribute<float32> spop:= sum(LoadResults/tot, LoadResults/all_countries_rel);
+		attribute<countries> countries_rel:= invert(countries/org_rel);
+	}
+	
+	unit<uint32> countries:= select_with_org_rel(all_countries/spop > 100f * 1000f) {
+		attribute<LambertEA> Geometry (poly):= all_countries/Geometry_lea[org_rel];
+		attribute<string>	 Label:= org_rel->NUTS_ID;
+		attribute<float32>	 tot_f:= sum(LoadResults/tot_f, LoadResults/countries_rel);
+		attribute<float32>	 tot_m:= sum(LoadResults/tot_m, LoadResults/countries_rel);
+	}
+	
+	
+	unit<uint32> degurba_lv2 : nrofrows = 7, Descr = "Degree of urbanisation level 2 typologies", URL = "https://human-settlement.emergency.copernicus.eu/degurbaDefinitions.php"
+	{
+		attribute<uint32>  EK    : [130, 223, 222, 221, 313, 312, 311];
+		attribute<string> Code:= string(EK);
+		attribute<string> Label : ['Urban centre','Dense urban cluster','Semi-dense urban cluster','Suburban grid cell','Rural cluster','Low density rural grid cell','Very low density grid cell'];
+		attribute<uint32> BrushColor: [rgb(255,0,0),rgb(115,35,0),rgb(168,112,0),rgb(255,255,0),rgb(55,86,35),rgb(171,205,102),rgb(205,245,122)];
+		attribute<string> name  := AsItemName(label);
+		attribute<Degurba_lv1> du_lv1_rel:= rlookup(EK / 100, Degurba_lv1/EK);
+		container V := for_each_nedv(name, String(ID(.))+'[..]', void, .);
+	}
+	unit<uint32> Degurba_lv1 : nrofrows = 3, Descr = "Degree of urbanisation level 1 typologies" {
+		attribute<uint32> 	EK :	[1, 2, 3];
+		attribute<string>	Label:  ['Urban_centre', 'Urban_cluster', 'Rural'] ;
+		attribute<string>   Code:= string(EK);
+		attribute<uint32> 	BrushColor: [rgb(255,0,0),rgb(255,255,0),rgb(55,86,35)];
+		attribute<string> 	name  := AsItemName(label);
+		container V := for_each_nedv(name, String(ID(.))+'[..]', void, .);
+	}
+	unit<uint32> Degurba_lvl1_x_remoteness: nrofrows = 5, Descr = "Degree of urbanisation level 1 typologies" {
+		attribute<uint32> 	EK :	[10, 20, 21, 30, 31];
+		attribute<string>	Label:  ['Urban_centre', 'Urban_cluster_close','Urban_cluster_remote', 'Rural_close', 'Rural_remote'] ;
+		attribute<string>   Code:= string(EK);
+		attribute<uint32> 	BrushColor: [rgb(255,0,0),rgb(255,255,0),rgb(255,255,20),rgb(55,86,35),rgb(55,86,55)];
+		attribute<string> 	name  := AsItemName(label);
+		container V := for_each_nedv(name, String(ID(.))+'[..]', void, .);
+	}
+	unit<uint32> Degurba_lvl1_x_remoteness_x_clustersize: nrofrows = 7, Descr = "Degree of urbanisation level 1 typologies" {
+		attribute<uint32> 	EK :	[7, 8, 9, 20, 21, 30, 31];
+		attribute<string>	Label:  ['Urban_centre_1M_plus','Urban_centre_250k_1M','Urban_centre_50k_250k', 'Urban_cluster_close','Urban_cluster_remote', 'Rural_close', 'Rural_remote'] ;
+		attribute<string>   Code:= string(EK);
+		attribute<uint32> 	BrushColor: [rgb(255,0,0),rgb(255,255,0),rgb(255,255,20),rgb(55,86,35),rgb(55,86,55)];
+		attribute<string> 	name  := AsItemName(label);
+		container V := for_each_nedv(name, String(ID(.))+'[..]', void, .);
+	}
+	unit<uint32> Clustersize: nrofrows = 4
+	{
+		attribute<float32> cutoff: [0, 50000, 250000, 1000000];
+		attribute<string>  label: ['<50k', '50k-250k','250k-1M','>1M'];
+	}
+	
+	container LoadResults:= for_each_ndvat(
+			SexAgeClasses/name
+			, e, float32
+			, ModelParameters/store_path+SexAgeClasses/name+'.tif'
+			, 'gdal.grid'
+			)
+	{
+		attribute<float32> tot (e):= ='add('+asitemlist(SexAgeClasses/name)+')';
+		attribute<float32> tot_f (e):= ='add('+asitemlist(SexAgeClasses/Sex_rel = 0 ? SexAgeClasses/name : '')+')';
+		attribute<float32> tot_m (e):= ='add('+asitemlist(SexAgeClasses/Sex_rel = 1 ? SexAgeClasses/name : '')+')';
+		attribute<all_countries> all_countries_rel (e):= point_in_polygon(e/Geometry, all_countries/Geometry_lea);
+		attribute<countries> countries_rel (e):= all_countries/countries_rel[all_countries_rel];
+		attribute<clusters> clusters_rel (e):= point_in_polygon(e/Geometry, clusters/Geometry);
+		attribute<country_x_degurba_lv1> cxd_1_rel (e):= rlookup(point_xy(countries_rel, degurbas_grid/du_lv1_rel, upoint), country_x_degurba_lv1/unipt);
+		attribute<country_x_degurba_lv2> cxd_2_rel (e):= rlookup(point_xy(countries_rel, degurbas_grid/du_lv2_rel, upoint), country_x_degurba_lv2/unipt);
+		attribute<country_x_degurba_lv1_x_remoteness> cxd1xr_rel (e):= rlookup(point_xy(countries_rel, degurbas_grid/du_rem_rel, upoint), country_x_degurba_lv1_x_remoteness/unipt);
+		attribute<country_x_degurba_lv1_x_remoteness_x_clustersize> cxd1xrxcs_rel (e):= rlookup(point_xy(countries_rel, degurbas_grid/du_rem_cluster_rel, upoint), country_x_degurba_lv1_x_remoteness_x_clustersize/unipt);
+	}
+	
+	unit<wpoint> degurbas_grid: storagename = "%sourcedataprojdir%/Reporting/DGUR_LEVEL2_GRD_1KM_2021.tif", storagereadonly = "true", storagetype = "gdal.grid", dialogdata = "LambertEA" {
+		attribute<uint32> GridData;
+		attribute<uint32> ReadData (e);
+		attribute<degurba_lv2> du_lv2_rel (e):= rlookup(ReadData, degurba_lv2/EK);
+		attribute<degurba_lv1> du_lv1_rel (e):= degurba_lv2/du_lv1_rel[du_lv2_rel];
+		attribute<Degurba_lvl1_x_remoteness> du_rem_rel (e):= rlookup((Degurba_lv1/EK[du_lv1_rel] * 10) + (du_lv1_rel <> Degurba_lv1/V/Urban_centre ? remoteness_grid/Remote[uint32] : 0), Degurba_lvl1_x_remoteness/EK);//rlookup((ReadData * 10) + (du_lv1_rel <> Degurba_lv1/V/Urban_centre ? remoteness_grid/Remote[uint32] : 0), Degurba_lvl1_x_remoteness/EK);
+		attribute<Clustersize> cs_rel (e):= clusters/cs_rel[LoadResults/clusters_rel];
+		attribute<Degurba_lvl1_x_remoteness_x_clustersize> du_rem_cluster_rel (e):= rlookup(Degurba_lvl1_x_remoteness/EK[du_rem_rel] - makedefined(cs_rel, 0), Degurba_lvl1_x_remoteness_x_clustersize/EK);
+		
+	}
+	unit<wpoint> remoteness_grid: storagename = "%sourcedataprojdir%/Reporting/time_minutes.tif", storagereadonly = "true", storagetype = "gdal.grid", dialogdata = "LambertEA" {
+		attribute<float32> GridData;
+		attribute<float32> ReadData (e);
+		attribute<bool>    Remote (e):= ReadData > 45f;	
+	}
+	//degurba2021_grid_v2_clusters
+	unit<uint32> clusters: storagename = "%sourcedataprojdir%/Reporting/degurba2021_grid_v2_clusters.shp", storagereadonly = "true", storagetype = "gdal.vect", dialogdata = "LambertEA_base" {
+		attribute<LambertEA> Geometry (poly);
+		attribute<float32>   pop:= sum(LoadResults/tot, LoadResults/clusters_rel);
+		attribute<Clustersize> cs_rel:= classify(pop, Clustersize/cutoff);
+//		attribute<uint32> dgurba2021_l2_code;
+	}	
+	
+	unit<uint32> country_x_degurba_lv1:= combine(countries, degurba_lv1)
+	{
+		attribute<string>  country:=countries/label[first_rel];
+		attribute<string>  degurba:=Degurba_lv1/label[second_rel];
+		attribute<string>  label:=  countries/label[first_rel] + ' ' + degurba_lv1/Label[second_rel];
+		attribute<upoint>  unipt:= 	point_xy(first_rel, second_rel, upoint);
+		attribute<float32> f:= 		sum(LoadResults/tot_f, LoadResults/cxd_1_rel);
+		attribute<float32> m:= 		sum(LoadResults/tot_m, LoadResults/cxd_1_rel);
+		attribute<float32> s_f:= 	f / countries/tot_f[first_rel];
+		attribute<float32> s_m:= 	f / countries/tot_m[first_rel];
+		attribute<float32> cumu_sf:= 1f - (cumulate(s_f, first_rel) - (0.5f * s_f));
+		attribute<float32> cumu_sm:= 1f - (cumulate(s_m, first_rel) - (0.5f * s_m));
+		
+		container share_ageclass_country_x_degurba_lv1:
+			= for_each_nedv(SexAgeClasses/Label
+			, 'sum(LoadResults/'+SexAgeClasses/Label+', LoadResults/cxd_1_rel) / '+SexAgeClasses/Gender_name
+			, country_x_degurba_lv1
+			, float32
+		);
+		
+		unit<uint32> graph_table:= ='union_unit('+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv1' : '')+')'
+		{
+			attribute<string>  label:= cxd_label + ' ' + sac;
+			attribute<string>  cxd_label:= 	='union_data(.,'+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv1/label' : '')+')';
+			attribute<string>  country:= 	='union_data(.,'+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv1/country' : '')+')';
+			attribute<string>  degurba:= 	='union_data(.,'+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv1/degurba' : '')+')';
+			attribute<string>  sac:= 		='union_data(.,'+asitemlist('const('+quote(SexAgeClasses/name)+',country_x_degurba_lv1,string)')+')';
+			attribute<float32> cumu_s:= 	='union_data(.,'+asitemlist(uppercase(SexAgeClasses/Gender_name)='F' ? 'cumu_sf' : 'cumu_sm')+')';
+			attribute<float32> pisd:=		='union_data(.,'+asitemlist('share_ageclass_country_x_degurba_lv1/'+SexAgeClasses/name)+')';
+		}
+		
+	}
+	unit<uint32> country_x_degurba_lv2:= combine(countries, degurba_lv2)
+	{
+		attribute<string>  country:=countries/label[first_rel];
+		attribute<string>  degurba:=Degurba_lv2/label[second_rel];
+		attribute<string>  label:=  countries/label[first_rel] + ' ' + degurba_lv2/Label[second_rel];
+		attribute<upoint>  unipt:= 	point_xy(first_rel, second_rel, upoint);
+		attribute<float32> f:= 		sum(LoadResults/tot_f, LoadResults/cxd_2_rel);
+		attribute<float32> m:= 		sum(LoadResults/tot_m, LoadResults/cxd_2_rel);
+		attribute<float32> s_f:= 	f / countries/tot_f[first_rel];
+		attribute<float32> s_m:= 	m / countries/tot_m[first_rel];
+		attribute<float32> cumu_sf:= 1f - (cumulate(s_f, first_rel) - (0.5f * s_f));
+		attribute<float32> cumu_sm:= 1f - (cumulate(s_m, first_rel) - (0.5f * s_m));
+		
+		container share_ageclass_country_x_degurba_lv2:
+			= for_each_nedv(SexAgeClasses/Label
+			, 'sum(LoadResults/'+SexAgeClasses/Label+', LoadResults/cxd_2_rel) / '+SexAgeClasses/Gender_name
+			, country_x_degurba_lv2
+			, float32
+		);
+		
+		unit<uint32> graph_table:= ='union_unit('+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv2' : '')+')'
+		{
+			attribute<string>  label:= cxd_label + ' ' + sac;
+			attribute<string>  cxd_label:= 		='union_data(.,'+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv2/label' : '')+')';
+			attribute<string>  country:= 		='union_data(.,'+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv2/country' : '')+')';
+			attribute<string>  degurba:= 		='union_data(.,'+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv2/degurba' : '')+')';
+			attribute<string>  sac:= 			='union_data(.,'+asitemlist('const('+quote(SexAgeClasses/name)+',country_x_degurba_lv2,string)')+')';
+			attribute<string>  sac_read:= 		='union_data(.,'+asitemlist('const('+quote(SexAgeClasses/AgeClasses_readable)+',country_x_degurba_lv2,string)')+')';
+			attribute<string>  repsac_read:= 	='union_data(.,'+asitemlist('const('+quote(SexAgeClasses/RepAgeClasses_readable)+',country_x_degurba_lv2,string)')+')';
+			attribute<float32> cumu_s:= 		='union_data(.,'+asitemlist(uppercase(SexAgeClasses/Gender_name)='F' ? 'cumu_sf' : 'cumu_sm')+')';
+			attribute<float32> pisd:=			='union_data(.,'+asitemlist('share_ageclass_country_x_degurba_lv2/'+SexAgeClasses/name)+')';
+		}
+		
+	}
+	unit<uint32> country_x_degurba_lv1_x_remoteness:= combine(countries, Degurba_lvl1_x_remoteness)
+	{
+		attribute<string>  country:=countries/label[first_rel];
+		attribute<string>  degurba:=Degurba_lvl1_x_remoteness/label[second_rel];
+		attribute<string>  label:=  countries/label[first_rel] + ' ' + Degurba_lvl1_x_remoteness/Label[second_rel];
+		attribute<upoint>  unipt:= 	point_xy(first_rel, second_rel, upoint);
+		attribute<float32> f:= 		sum(LoadResults/tot_f, LoadResults/cxd1xr_rel);
+		attribute<float32> m:= 		sum(LoadResults/tot_m, LoadResults/cxd1xr_rel);
+		attribute<float32> s_f:= 	f / countries/tot_f[first_rel];
+		attribute<float32> s_m:= 	m / countries/tot_m[first_rel];
+		attribute<float32> cumu_sf:= 1f - (cumulate(s_f, first_rel) - (0.5f * s_f));
+		attribute<float32> cumu_sm:= 1f - (cumulate(s_m, first_rel) - (0.5f * s_m));
+		
+		container share_ageclass_country_x_degurba_lv1_x_remoteness:
+			= for_each_nedv(SexAgeClasses/Label
+			, 'sum(LoadResults/'+SexAgeClasses/Label+', LoadResults/cxd1xr_rel) / '+SexAgeClasses/Gender_name
+			, country_x_degurba_lv1_x_remoteness
+			, float32
+		);
+		
+		unit<uint32> graph_table:= ='union_unit('+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv1_x_remoteness' : '')+')'
+		{
+			attribute<string>  label:= cxd_label + ' ' + sac;
+			attribute<string>  cxd_label:= 		='union_data(.,'+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv1_x_remoteness/label' : '')+')';
+			attribute<string>  country:= 		='union_data(.,'+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv1_x_remoteness/country' : '')+')';
+			attribute<string>  degurba:= 		='union_data(.,'+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv1_x_remoteness/degurba' : '')+')';
+			attribute<string>  sac:= 			='union_data(.,'+asitemlist('const('+quote(SexAgeClasses/name)+',country_x_degurba_lv1_x_remoteness,string)')+')';
+			attribute<string>  sac_read:= 		='union_data(.,'+asitemlist('const('+quote(SexAgeClasses/AgeClasses_readable)+',country_x_degurba_lv1_x_remoteness,string)')+')';
+			attribute<string>  repsac_read:= 	='union_data(.,'+asitemlist('const('+quote(SexAgeClasses/RepAgeClasses_readable)+',country_x_degurba_lv1_x_remoteness,string)')+')';
+			attribute<float32> cumu_s:= 		='union_data(.,'+asitemlist(uppercase(SexAgeClasses/Gender_name)='F' ? 'cumu_sf' : 'cumu_sm')+')';
+			attribute<float32> pisd:=			='union_data(.,'+asitemlist('share_ageclass_country_x_degurba_lv1_x_remoteness/'+SexAgeClasses/name)+')';
+		}
+		
+	}
+	unit<uint32> country_x_degurba_lv1_x_remoteness_x_clustersize:= combine(countries, Degurba_lvl1_x_remoteness_x_clustersize)
+	{
+		attribute<string>  country:=countries/label[first_rel];
+		attribute<string>  degurba:=Degurba_lvl1_x_remoteness_x_clustersize/label[second_rel];
+		attribute<string>  label:=  countries/label[first_rel] + ' ' + Degurba_lvl1_x_remoteness_x_clustersize/Label[second_rel];
+		attribute<upoint>  unipt:= 	point_xy(first_rel, second_rel, upoint);
+		attribute<float32> f:= 		sum(LoadResults/tot_f, LoadResults/cxd1xrxcs_rel);
+		attribute<float32> m:= 		sum(LoadResults/tot_m, LoadResults/cxd1xrxcs_rel);
+		attribute<float32> s_f:= 	f / countries/tot_f[first_rel];
+		attribute<float32> s_m:= 	m / countries/tot_m[first_rel];
+		attribute<float32> cumu_sf:= 1f - (cumulate(s_f, first_rel) - (0.5f * s_f));
+		attribute<float32> cumu_sm:= 1f - (cumulate(s_m, first_rel) - (0.5f * s_m));
+		
+		container share_ageclass_country_x_degurba_lv1_x_remoteness:
+			= for_each_nedv(SexAgeClasses/Label
+			, 'sum(LoadResults/'+SexAgeClasses/Label+', LoadResults/cxd1xrxcs_rel) / '+SexAgeClasses/Gender_name
+			, country_x_degurba_lv1_x_remoteness_x_clustersize
+			, float32
+		);
+		
+		unit<uint32> graph_table:= ='union_unit('+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv1_x_remoteness_x_clustersize' : '')+')'
+		{
+			attribute<string>  label:= cxd_label + ' ' + sac;
+			attribute<string>  cxd_label:= 		='union_data(.,'+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv1_x_remoteness_x_clustersize/label' : '')+')';
+			attribute<string>  country:= 		='union_data(.,'+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv1_x_remoteness_x_clustersize/country' : '')+')';
+			attribute<string>  degurba:= 		='union_data(.,'+asitemlist(strlen(SexAgeClasses/name) > 0 ? 'country_x_degurba_lv1_x_remoteness_x_clustersize/degurba' : '')+')';
+			attribute<string>  sac:= 			='union_data(.,'+asitemlist('const('+quote(SexAgeClasses/name)+',country_x_degurba_lv1_x_remoteness_x_clustersize,string)')+')';
+			attribute<string>  sac_read:= 		='union_data(.,'+asitemlist('const('+quote(SexAgeClasses/AgeClasses_readable)+',country_x_degurba_lv1_x_remoteness_x_clustersize,string)')+')';
+			attribute<string>  repsac_read:= 	='union_data(.,'+asitemlist('const('+quote(SexAgeClasses/RepAgeClasses_readable)+',country_x_degurba_lv1_x_remoteness_x_clustersize,string)')+')';
+			attribute<float32> cumu_s:= 		='union_data(.,'+asitemlist(uppercase(SexAgeClasses/Gender_name)='F' ? 'cumu_sf' : 'cumu_sm')+')';
+			attribute<float32> pisd:=			='union_data(.,'+asitemlist('share_ageclass_country_x_degurba_lv1_x_remoteness/'+SexAgeClasses/name)+')';
+		}
+		
+	}
+	
+
+}

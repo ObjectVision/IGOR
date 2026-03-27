@@ -11,6 +11,8 @@ container Classifications: Using = "Units", KeepData = "True"
 		// attribute<SexBroadAgeClasses>   broadfrom              := classify(from, SexBroadAgeClasses/from), descr = "link with broad age classes";
 		attribute<string>               name                   := Gender_name + '_' + AgeClass_name;
 		attribute<string>               label                  := name;
+		attribute<string>				AgeClasses_readable	   := AgeClasses/AgeClasses_readable[second_rel], descr = "Used for reporting (ad hoc reporting unit)";
+		attribute<string> 				RepAgeClasses_readable := AgeClasses/RepAgeClasses_readable[second_rel], descr = "Used for reporting (ad hoc reporting unit)";
 		
 		attribute<BroadClasses>         BroadClasses_rel       := SexBroadAgeClasses_rel -> second_rel;
 		
@@ -67,6 +69,10 @@ container Classifications: Using = "Units", KeepData = "True"
 		attribute<BroadClasses>   broadfrom                                   := classify(from, BroadClasses/from), descr = "link with broad age classes";
 		attribute<BroadClasses>   BroadClasses_rel                            := classify(from, BroadClasses/from), descr = "link with broad age classes";
 		attribute<EurostatClaims> eurostatfrom                                := classify(from, EurostatClaims/from), descr = "link with eurostat claim age classes";
+
+		attribute<string> 		  AgeClasses_readable    : ['Below 5','5 to 10','10 to 15','15 to 20','20 to 25','25 to 30','30 to 35','35 to 40','40 to 45','45 to 50','50 to 55','55 to 60','60 to 65','65 to 70','70 to 75','75 to 80','80 to 85','85 plus'];
+		attribute<string>		  RepAgeClasses_readable : ['Below 20','Below 20','Below 20','Below 20','20 to 45','20 to 45','20 to 45','20 to 45','20 to 45','45 to 65','45 to 65','45 to 65','45 to 65','65 plus','65 plus','65 plus','65 plus','65 plus'];		
+		
 		attribute<float32>        average                                       := id(.) < max(id(.)) ? float32(from + to + 1) / 2f : float32(from) + 5f, descr = "average age in age class (assumed equal distribution)";
 		attribute<float32>        IntraRegionalMobility                       := IntraRegionalMobility_bc[eurostatfrom], descr = "assumed annual intra regional mobility in age class (static, obtained from census 2011)";
 		attribute<float32>        ClassDuration                               := id(.) < max(id(.)) ? float32(to - from) + 1f : 0f / 0f, descr = "length of age class, null if last age class";
