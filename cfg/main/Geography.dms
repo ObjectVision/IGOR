@@ -117,7 +117,7 @@ container Geography : using = "units"
 			attribute<SourceData/RegionalUnits/LAU> LAU_rel           := SourceData/RegionalUnits/LAU/per_domain_100m;
 			attribute<SourceData/RegionalUnits/LAU> r_rel             := LAU_rel;
 			
-			attribute<bool>                         in_study_area     := AND(reference_data/p_p > 0.0f, IsDefined(r_rel));
+			attribute<bool>                         in_study_area     := AND(Analysis/p_p > 0.0f, IsDefined(r_rel));
 			attribute<SourceData/RegionalUnits/LAU> r_rel_in_sa       := in_study_area ? r_rel : null_u;
 			
 			attribute<.>                            domain_100m_rel   := mapping(., domain_100m);

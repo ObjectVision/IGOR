@@ -1,4 +1,4 @@
-Container Reference_data
+Container Analysis
 : Using = "SourceData/RegionalUnits;SourceData"
 , Descr = "Procedures to generate reference 2011 base maps per narrow age class, with LAU2 census data, SEDAC grids, and additional local data for NL, SK and SI" 
 {
@@ -209,16 +209,18 @@ Container Reference_data
 				, Person
 			), Descr = "Error in absolute vs expected population sizes";
 	}
-	container StoreResults {
-		
+	container StoreResults 
+	{
 		parameter<bool> button:= True, explicitsuppliers = "abs_pop_1km;rel_pop_1km;";
 			
-		container abs_pop_1km:= for_each_nedvat(
-			SexAgeClasses/name
-			, 'sum(Result/X_asi/'+SexAgeClasses/name+'[float32], i/e_rel)'
-			, e, float32
-			, ModelParameters/store_path+SexAgeClasses/name+'.tif'
-			, 'gdalwrite.grid'
+		container abs_pop_1km:= 
+			for_each_nedvat(
+				SexAgeClasses/name
+				, 'sum(Result/X_asi/'+SexAgeClasses/name+'[float32], i/e_rel)'
+				, e
+				, float32
+				, ModelParameters/store_path+SexAgeClasses/name+'.tif'
+				, 'gdalwrite.grid'
 			)
 		{
 			attribute<float32> total (e):= sum(Result/X_asi/Total[float32], i/e_rel), storagename = "= ModelParameters/store_path+'Total.tif'", storagetype = "gdalwrite.grid";
