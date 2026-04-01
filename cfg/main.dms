@@ -25,8 +25,6 @@ container IGOR : IntegrityCheck = "GeoDMSVersion() >= 18.0101" // format 17.1.2 
 	#include<Geography.dms>
 	#include<SourceData.dms>
 	#include<Reference_data.dms>
-	// #include<LUISA_sequence.dms>
-	#include<Templates.dms>
 	
 	#include<ConfigSettings.dms>
 	#include<ExportSettings.dms>
