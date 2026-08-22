@@ -90,6 +90,76 @@ container RegionalUnits : Using = "Geography;"
 		}
 	}
 	
+	/*	CRISP #126 (https://github.com/ObjectVision/CRISP/issues/126):
+		de lopende hypothese daar is dat poly2grid() de LINKERBOVENHOEK van een gridcel toetst en het
+		GHSL-team het CELMIDDEN, en dat een halve-celverschuiving onze delineatie gelijk zou trekken.
+		Deze container meet dat na op de EU-landsgrenzen in het 1km-grid, en weerlegt die hypothese:
+
+			poly2grid()  ==  point_in_polygon(celmidden)   -> 0 verschillende cellen van 4.592.492
+			poly2grid()  vs  point_in_polygon(linkerbovenhoek) -> 58.695 verschillende cellen
+
+		poly2grid() toetst dus al het celmidden, precies de GHSL-conventie; de voorgestelde halve-cel-
+		verschuiving zou het verschil juist INTRODUCEREN (58.731 cellen, zie counts/nr_p2g_vs_shifted).
+		Dat cell_topleft op ronde kilometers ligt (2.636.000 ...) en cell_centre op ...500, bevestigt
+		welk punt welk is.
+
+		De verschuiving zelf staat hieronder wel uitgewerkt, want dat is de manier om poly2grid een
+		ander toetspunt te geven: verschuif niet het grid maar de POLYGONEN, over -0.5 * gridcelmaat.
+		Zo blijft poly2grid bruikbaar (getiled, snel) in plaats van een point_in_polygon over alle cellen.
+	*/
+	container Countries : Descr = "CRISP #126: welk punt van een gridcel toetst poly2grid, en wat doet een halve-celverschuiving?"
+	{
+		unit<uint32> region := impl/Country/Subset;
+		unit<ipoint> domain := Geography/impl/domain_1000m;
+
+		attribute<LambertEA> cell_topleft (domain) := id(domain)[LambertEA], Descr = "hoekpunt van de cel: ronde kilometers";
+		attribute<LambertEA> cell_centre  (domain) := domain/geometry,       Descr = "hoekpunt + een halve cel, dus ...500";
+
+		attribute<region> per_domain         (domain) := poly2grid(region/geometry, domain),          Descr = "zoals overal in het model";
+		attribute<region> per_domain_centre  (domain) := point_in_polygon(cell_centre,  region/geometry), Descr = "referentie: celmidden getoetst";
+		attribute<region> per_domain_topleft (domain) := point_in_polygon(cell_topleft, region/geometry), Descr = "referentie: linkerbovenhoek getoetst";
+
+		//	het voorstel uit issue #126: de polygonen een halve cel verschuiven i.p.v. het grid
+		parameter<float64>   cell_size_x := Get_X(getprojectionfactor(domain)), Descr = "gridcelmaat in x-richting: +1000 m";
+		parameter<float64>   cell_size_y := Get_Y(getprojectionfactor(domain)), Descr = "gridcelmaat in y-richting: -1000 m, want het grid loopt naar beneden";
+		parameter<LambertEA> half_cell   := point_xy(0.5d * cell_size_x, 0.5d * cell_size_y, LambertEA), Descr = "xy(500; -500)";
+
+		unit<uint32> point_set := sequence2points(region/geometry)
+		{
+			attribute<LambertEA> point_shifted := point - half_cell;
+		}
+		attribute<LambertEA> geometry_shifted (poly, region) := points2polygon(point_set/point_shifted, point_set/sequence_rel, point_set/ordinal);
+		attribute<region>     per_domain_shifted     (domain) := poly2grid(geometry_shifted, domain), Descr = "poly2grid op een halve cel verschoven polygonen";
+
+		//	nul-veilige codering voor het vergelijken: 0 = in geen enkel land, anders landnummer + 1
+		attribute<uint32> code_p2g     (domain) := IsDefined(per_domain)         ? uint32(per_domain)         + 1 : 0;
+		attribute<uint32> code_centre  (domain) := IsDefined(per_domain_centre)  ? uint32(per_domain_centre)  + 1 : 0;
+		attribute<uint32> code_topleft (domain) := IsDefined(per_domain_topleft) ? uint32(per_domain_topleft) + 1 : 0;
+		attribute<uint32> code_shifted (domain) := IsDefined(per_domain_shifted) ? uint32(per_domain_shifted) + 1 : 0;
+
+		unit<uint8> diff_class : nrofrows = 4
+		{
+			attribute<string> label      : ['gelijk', 'cel valt weg door de verschuiving', 'cel komt erbij door de verschuiving', 'cel gaat naar een ander land'];
+			attribute<uint32> BrushColor : [rgb(235,235,235), rgb(215,45,45), rgb(45,110,215), rgb(245,175,40)];
+		}
+
+		attribute<diff_class> diff_shifted (domain) := code_p2g == code_shifted
+			? 0[diff_class]
+			: (code_shifted == 0 ? 1[diff_class] : (code_p2g == 0 ? 2[diff_class] : 3[diff_class]))
+		,	Descr = "wat de voorgestelde halve-celverschuiving met de landdelineatie zou doen";
+
+		container counts : Descr = "de tellingen die in issue #126 gerapporteerd zijn"
+		{
+			parameter<uint32> nr_cells_in_a_country := sum(uint32(code_p2g <> 0));
+			parameter<uint32> nr_p2g_vs_centre      := sum(uint32(code_p2g <> code_centre)),  Descr = "0: poly2grid toetst het celmidden";
+			parameter<uint32> nr_p2g_vs_topleft     := sum(uint32(code_p2g <> code_topleft)), Descr = "> 0: poly2grid toetst dus NIET de linkerbovenhoek";
+			parameter<uint32> nr_p2g_vs_shifted     := sum(uint32(code_p2g <> code_shifted)), Descr = "wat de verschuiving zou kosten";
+			parameter<uint32> nr_shift_loses        := sum(uint32(diff_shifted == 1[diff_class]));
+			parameter<uint32> nr_shift_gains        := sum(uint32(diff_shifted == 2[diff_class]));
+			parameter<uint32> nr_shift_reassigns    := sum(uint32(diff_shifted == 3[diff_class]));
+		}
+	}
+	
 	unit<uint32> LAU_org := select_with_attr_by_cond(impl/LAU/LAU_RG_01M_2021_3035_gpkg, IsDefined(impl/LAU/LAU_RG_01M_2021_3035_gpkg/geometry))
 	{
 		attribute<.>         per_domain (domain) := poly2grid(geometry, domain);
