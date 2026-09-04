@@ -107,7 +107,13 @@ container SourceData
 			
 			unit<uint32> field := Range(uint32, 0, strcount(headerline, fieldseparator) + 1)
 			{
-				attribute<string> name := ReadArray(headerline , field, string, 0);
+				attribute<string> name_in_file := ReadArray(headerline , field, string, 0);
+				// The 2001 and 2011 POP_AGE_SEX csv's carry an unnamed first column (an R row index),
+				// so name_in_file[0] is the empty string. The data container below chains each field's
+				// ReadElems on the PREVIOUS field's ReadPos sub-item, and an empty name turns that
+				// reference into the absolute path '/ReadPos', which breaks the whole chain. Substitute
+				// a positional name for any column the file leaves unnamed.
+				attribute<string> name        := strlen(name_in_file) > 0 ? name_in_file : 'col_'+string(id(.));
 			}
 				
 			attribute<string> bodylines (domain) := readLines(filedata, domain, headerline/ReadPos);

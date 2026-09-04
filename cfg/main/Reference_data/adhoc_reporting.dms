@@ -75,7 +75,7 @@ container adhoc_reporting
 		attribute<country_x_degurba_lv1_x_remoteness_x_clustersize> cxd1xrxcs_rel (e):= rlookup(point_xy(countries_rel, degurbas_grid/du_rem_cluster_rel, upoint), country_x_degurba_lv1_x_remoteness_x_clustersize/unipt);
 	}
 	
-	unit<wpoint> degurbas_grid: storagename = "%sourcedataprojdir%/Reporting/DGUR_LEVEL2_GRD_1KM_2021.tif", storagereadonly = "true", storagetype = "gdal.grid", dialogdata = "LambertEA" {
+	unit<wpoint> degurbas_grid: StorageName = "%IGOR_DataDir%/Reporting/DGUR_LEVEL2_GRD_1KM_2021.tif", StorageReadOnly = "true", StorageType = "gdal.grid", dialogdata = "LambertEA" {
 		attribute<uint32> GridData;
 		attribute<uint32> ReadData (e);
 		attribute<degurba_lv2> du_lv2_rel (e):= rlookup(ReadData, degurba_lv2/EK);
@@ -85,13 +85,13 @@ container adhoc_reporting
 		attribute<Degurba_lvl1_x_remoteness_x_clustersize> du_rem_cluster_rel (e):= rlookup(Degurba_lvl1_x_remoteness/EK[du_rem_rel] - makedefined(cs_rel, 0), Degurba_lvl1_x_remoteness_x_clustersize/EK);
 		
 	}
-	unit<wpoint> remoteness_grid: storagename = "%sourcedataprojdir%/Reporting/time_minutes.tif", storagereadonly = "true", storagetype = "gdal.grid", dialogdata = "LambertEA" {
+	unit<wpoint> remoteness_grid: StorageName = "%IGOR_DataDir%/Reporting/time_minutes.tif", StorageReadOnly = "true", StorageType = "gdal.grid", dialogdata = "LambertEA" {
 		attribute<float32> GridData;
 		attribute<float32> ReadData (e);
 		attribute<bool>    Remote (e):= ReadData > 45f;	
 	}
 	//degurba2021_grid_v2_clusters
-	unit<uint32> clusters: storagename = "%sourcedataprojdir%/Reporting/degurba2021_grid_v2_clusters.shp", storagereadonly = "true", storagetype = "gdal.vect", dialogdata = "LambertEA_base" {
+	unit<uint32> clusters: StorageName = "%IGOR_DataDir%/Reporting/degurba2021_grid_v2_clusters.shp", StorageReadOnly = "true", StorageType = "gdal.vect", dialogdata = "LambertEA_base" {
 		attribute<LambertEA> Geometry (poly);
 		attribute<float32>   pop:= sum(LoadResults/tot, LoadResults/clusters_rel);
 		attribute<Clustersize> cs_rel:= classify(pop, Clustersize/cutoff);

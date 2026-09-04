@@ -42,7 +42,7 @@ container Geography : using = "units"
 			attribute<.>               ordinal      := id(.);
 		}
 		
-		attribute<LambertEA_base> geometry (poly)      := points2sequence(point_set/point, point_set/sequence_rel, point_set/ordinal);
+		attribute<LambertEA_base> geometry (poly)      := points2polygon(point_set/point, point_set/sequence_rel, point_set/ordinal);
 		
 		unit<uint32> result := selection_polygon;
 	}
