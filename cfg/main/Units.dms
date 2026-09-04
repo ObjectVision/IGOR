@@ -1,9 +1,9 @@
 container Units
 {
-	unit<Float64> Meter  := BaseUnit('m', Float64);
-	unit<Float64> Meter2 := Meter * Meter;
-	unit<Float64> km     := 1000.0  * Meter;
-	unit<Float64> km2    := km * km; 
+	unit<float64> Meter  := BaseUnit('m', float64);
+	unit<float64> Meter2 := Meter * Meter;
+	unit<float64> km     := 1000.0  * Meter;
+	unit<float64> km2    := km * km; 
 	
 	
 	unit<float32> Person    := BaseUnit('p', float32); 

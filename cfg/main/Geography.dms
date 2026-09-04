@@ -1,4 +1,4 @@
-container Geography : using = "units"
+container Geography : Using = "Units"
 {
 	#include <ngr_layer_lea.dms>
 	unit<dpoint> LambertEA_base   : SpatialReference = "EPSG:3035", DialogData = "ngr_layer_lea"
@@ -11,7 +11,7 @@ container Geography : using = "units"
 	}
 	unit<dpoint> LambertEA              := ='impl/LambertEA_'+ModelParameters/StudyArea;
 
-	unit<uint32> selection_polygon : nrofrows = 1, Using = "units"
+	unit<uint32> selection_polygon : nrofrows = 1, Using = "Units"
 	{
 		container Extent_EU
 		{
@@ -68,10 +68,10 @@ container Geography : using = "units"
 				, ipoint                              // the value type of the resulting domain unit (in earlier versions the value type was configured as string, this is not supported anymore)
 			);
 	
-		parameter<ProtoDomain_100m>  TileSize_100m    := Point_yx(1024i, 1024i, ProtoDomain_100m);
-		parameter<ProtoDomain_100m>  TileOffset_100m  := Point_yx(   0i,    0i, ProtoDomain_100m);
-		parameter<ProtoDomain_1000m> TileSize_1000m   := Point_yx(1024i, 1024i, ProtoDomain_1000m);
-		parameter<ProtoDomain_1000m> TileOffset_1000m := Point_yx(   0i,    0i, ProtoDomain_1000m);
+		parameter<ProtoDomain_100m>  TileSize_100m    := point_yx(1024i, 1024i, ProtoDomain_100m);
+		parameter<ProtoDomain_100m>  TileOffset_100m  := point_yx(   0i,    0i, ProtoDomain_100m);
+		parameter<ProtoDomain_1000m> TileSize_1000m   := point_yx(1024i, 1024i, ProtoDomain_1000m);
+		parameter<ProtoDomain_1000m> TileOffset_1000m := point_yx(   0i,    0i, ProtoDomain_1000m);
 
 		unit<spoint>  Tile_100m := gridset(ProtoDomain_100m, TileSize_100m, TileOffset_100m, spoint)
 		{
@@ -113,11 +113,11 @@ container Geography : using = "units"
 	
 		unit<ipoint> domain_100m := TiledUnit(StudyAreaTile_100m/LB, StudyAreaTile_100m/UB)
 		{
-			attribute<LambertEA>                    geometry          := id(.)[LambertEA] + point_xy(0.5 * 100d,0.5 * 100d, LambertEA), LazyCalculated = "True", Dialogdata = "LambertEA";
+			attribute<LambertEA>                    geometry          := id(.)[LambertEA] + point_xy(0.5 * 100d,0.5 * 100d, LambertEA), LazyCalculated = "True", DialogData = "LambertEA";
 			attribute<SourceData/RegionalUnits/LAU> LAU_rel           := SourceData/RegionalUnits/LAU/per_domain_100m;
 			attribute<SourceData/RegionalUnits/LAU> r_rel             := LAU_rel;
 			
-			attribute<bool>                         in_study_area     := AND(Analysis/p_p > 0.0f, IsDefined(r_rel));
+			attribute<bool>                         in_study_area     := and(Analysis/p_p > 0.0f, IsDefined(r_rel));
 			attribute<SourceData/RegionalUnits/LAU> r_rel_in_sa       := in_study_area ? r_rel : null_u;
 			
 			attribute<.>                            domain_100m_rel   := mapping(., domain_100m);
@@ -125,8 +125,8 @@ container Geography : using = "units"
 			
 			attribute<uint64>                       NrOf100mCellsPerCell := pcount(domain_100m_rel);
 			
-			attribute<uint64>                       domain_key := uint64(r_rel_in_sa) * uint64(domain_1000m/NrCells) + uint64(domain_1000m_rel->Ordinal);
-			attribute<domain>                       domain_rel := rlookup(domain_key, domain/values);
+			attribute<uint64>                       domain_key := uint64(r_rel_in_sa) * uint64(domain_1000m/NrCells) + uint64(domain_1000m_rel->ordinal);
+			attribute<domain>                       domain_rel := rlookup(domain_key, domain/Values);
 			
 		}
 		unit<ipoint> domain_1000m := TiledUnit(StudyAreaTile_1000m/LB, StudyAreaTile_1000m/UB)
@@ -139,10 +139,10 @@ container Geography : using = "units"
 			parameter<uint32>                      NrRows   := 1+uint32(LastRow-FirstRow);
 			parameter<uint32>                      NrCells := NrRows * NrCols;
 			
-			attribute<uint32>                       Ordinal := uint32(pointrow(ID(.)) -FirstRow) * NrCols + uint32(pointcol(ID(.))-FirstCol);
+			attribute<uint32>                       ordinal := uint32(pointrow(id(.)) -FirstRow) * NrCols + uint32(pointcol(id(.))-FirstCol);
 			
 			//attribute<LambertEA>                    geometry       := id(.)[LambertEA] + point_xy(0.5 * 1000d,0.5 * 1000d, LambertEA), LazyCalculated = "True", Dialogdata = "LambertEA";
-			attribute<LambertEA>                    geometry       := id(.)[LambertEA] + (point_xy(0.5d,0.5d, LambertEA) * getprojectionfactor(.)), LazyCalculated = "True", Dialogdata = "LambertEA";
+			attribute<LambertEA>                    geometry       := id(.)[LambertEA] + (point_xy(0.5d,0.5d, LambertEA) * getprojectionfactor(.)), LazyCalculated = "True", DialogData = "LambertEA";
 			attribute<SourceData/RegionalUnits/LAU> LAU_rel        := SourceData/RegionalUnits/LAU/per_domain_1000m;
 			attribute<SourceData/RegionalUnits/LAU> r_rel          := LAU_rel;
 			
@@ -156,10 +156,10 @@ container Geography : using = "units"
 	}
 	
 	unit<ipoint> domain_grid := ='impl/domain_'+string(ModelParameters/Gridsize)+'m';
-	unit<uint32> domain := unique_uint32(impl/domain_100m/domain_key), DialogType = "Map", DialogData = "per_100mgrid"
+	unit<uint32> domain := unique_uint32(impl/domain_100m/domain_key), DialogType = "map", DialogData = "per_100mgrid"
 	{
-		attribute<SourceData/RegionalUnits/LAU> r_rel_in_sa := value(values / uint64(impl/domain_1000m/NrCells), SourceData/RegionalUnits/LAU);
-		attribute<uint32> ordinal := uint32(values % uint64(impl/domain_1000m/NrCells));
+		attribute<SourceData/RegionalUnits/LAU> r_rel_in_sa := value(Values / uint64(impl/domain_1000m/NrCells), SourceData/RegionalUnits/LAU);
+		attribute<uint32> ordinal := uint32(Values % uint64(impl/domain_1000m/NrCells));
 		attribute<impl/domain_1000m> domain_1000m_rel := rlookup(ordinal, impl/domain_1000m/ordinal); // TODO: Optimize by disentangling row and col values
 		
 		attribute<.> per_100mgrid(impl/domain_100m) := impl/domain_100m/domain_rel;

@@ -2,6 +2,6 @@ container ConfigSettings
 {
 	container Overridable
 	{
-		parameter<String> IGOR_DataDir := '%sourceDataDir%/IGOR';
+		parameter<string> IGOR_DataDir := '%sourceDataDir%/IGOR';
 	}
 }

@@ -18,5 +18,5 @@ set geodms=C:\Program Files\ObjectVision\GeoDms20.19.1.m\GeoDmsRun.exe
 set cfg=%~dp0..\cfg\main.dms
 set log=%LocalAppData%\Temp\IGOR_regenerate_analysis.log
 
-"%geodms%" /L"%log%" /S1 /S2 /S3 "%cfg%" /Analysis/StoreResults/button @statistics /Analysis/Result/MAPE /Analysis/Result/Diff_X_i_P_i /Analysis/Checks/Qr_0_and_Pr_gt0
+"%geodms%" /L"%log%" /S1 /S2 /S3 "%cfg%" /Analysis/StoreResults/button @statistics /Analysis/result/MAPE /Analysis/result/Diff_X_i_P_i /Analysis/Checks/Qr_0_and_Pr_gt0
 echo GeoDmsRun exit code %ERRORLEVEL%, log: %log%

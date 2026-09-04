@@ -50,21 +50,21 @@ container RegionalUnits : Using = "Geography;"
 			attribute<bool>      IsEFTA          := EFTA_STAT == 'T'; 
 			attribute<bool>      IsCC            := CC_STAT == 'T'; 
 			attribute<bool>      IsTerritory       := strcount(SVRG_UN, 'Territory') > 0; 
-			unit<uint32> Subset := select_with_attr_by_cond(.,(ModelParameters/Use_Country_selection ? name_engl == /ModelParameters/StudyArea : IsEu || IsEFTA))
+			unit<uint32> subset := select_with_attr_by_cond(.,(ModelParameters/Use_Country_selection ? name_engl == /ModelParameters/StudyArea : IsEU || IsEFTA))
 			{
-				attribute<LambertEA>    geometry_BB (poly, BoundingBox) := points2polygon(BoundingBox/point_set/point, BoundingBox/point_set/Sequence_rel, BoundingBox/point_set/ordinal);
+				attribute<LambertEA>    geometry_BB (poly, BoundingBox) := points2polygon(BoundingBox/point_set/point, BoundingBox/point_set/sequence_rel, BoundingBox/point_set/ordinal);
 				
-				unit<UInt32> BoundingBox : NrOfRows = 1
+				unit<uint32> BoundingBox : nrofrows = 1
 				{
 					parameter<LambertEA> bottom_left  := first(lower_bound(geometry));
 					parameter<LambertEA> top_right    := first(upper_bound(geometry));
-					parameter<LambertEA> top_left     := point_xy(Get_X(bottom_left),Get_Y(top_right), LambertEA);
-					parameter<LambertEA> bottom_right := point_xy(Get_X(top_right),Get_Y(bottom_left), LambertEA);
+					parameter<LambertEA> top_left     := point_xy(get_x(bottom_left),get_y(top_right), LambertEA);
+					parameter<LambertEA> bottom_right := point_xy(get_x(top_right),get_y(bottom_left), LambertEA);
 					
-					unit<UInt32> point_set    : NrOfRows = 5
+					unit<uint32> point_set    : nrofrows = 5
 					{
 						attribute<LambertEA> point        := union_data(., top_left, top_right, bottom_right, bottom_left, top_left);
-						attribute<..>        Sequence_rel := const(0, .);
+						attribute<..>        sequence_rel := const(0, .);
 						attribute<.>         ordinal      := id(.);
 					}
 				}
@@ -88,17 +88,17 @@ container RegionalUnits : Using = "Geography;"
 		{
 			attribute<LambertEA>      geometry        (poly) := Country_Split/geometry_lea[org_rel];
 			attribute<string>         name                   := Country_Split/name[org_rel];
-			attribute<Continental_EU> Continental_EU_rel     := rlookup(name, Continental_EU/values);
+			attribute<Continental_EU> Continental_EU_rel     := rlookup(name, Continental_EU/Values);
 			
 		}
 		
 		unit<uint8> Continental_EU := unique_uint8(Continental_EU_undissolved/name)
 		{
 			attribute<LambertEA>       geometry (poly) := geos_union_polygon(Continental_EU_undissolved/geometry, Continental_EU_undissolved/Continental_EU_rel);
-			attribute<string>          name            := values;
-			attribute<string>          label           := values;
-			attribute<Country/Subset>  Country_rel     := rlookup(name, Country/Subset/name_engl);
-			attribute<string>          country_id      := Country/Subset/CNTR_ID[Country_rel];
+			attribute<string>          name            := Values;
+			attribute<string>          Label           := Values;
+			attribute<Country/subset>  Country_rel     := rlookup(name, Country/subset/name_engl);
+			attribute<string>          country_id      := Country/subset/CNTR_ID[Country_rel];
 		}
 	}
 	
@@ -121,7 +121,7 @@ container RegionalUnits : Using = "Geography;"
 	*/
 	container Countries : Descr = "CRISP #126: welk punt van een gridcel toetst poly2grid, en wat doet een halve-celverschuiving?"
 	{
-		unit<uint32> region := impl/Country/Subset;
+		unit<uint32> region := impl/Country/subset;
 		unit<ipoint> domain := Geography/impl/domain_1000m;
 
 		attribute<LambertEA> cell_topleft (domain) := id(domain)[LambertEA], Descr = "hoekpunt van de cel: ronde kilometers";
@@ -132,8 +132,8 @@ container RegionalUnits : Using = "Geography;"
 		attribute<region> per_domain_topleft (domain) := point_in_polygon(cell_topleft, region/geometry), Descr = "referentie: linkerbovenhoek getoetst";
 
 		//	het voorstel uit issue #126: de polygonen een halve cel verschuiven i.p.v. het grid
-		parameter<float64>   cell_size_x := Get_X(getprojectionfactor(domain)), Descr = "gridcelmaat in x-richting: +1000 m";
-		parameter<float64>   cell_size_y := Get_Y(getprojectionfactor(domain)), Descr = "gridcelmaat in y-richting: -1000 m, want het grid loopt naar beneden";
+		parameter<float64>   cell_size_x := get_x(getprojectionfactor(domain)), Descr = "gridcelmaat in x-richting: +1000 m";
+		parameter<float64>   cell_size_y := get_y(getprojectionfactor(domain)), Descr = "gridcelmaat in y-richting: -1000 m, want het grid loopt naar beneden";
 		parameter<LambertEA> half_cell   := point_xy(0.5d * cell_size_x, 0.5d * cell_size_y, LambertEA), Descr = "xy(500; -500)";
 
 		unit<uint32> point_set := sequence2points(region/geometry)
@@ -151,7 +151,7 @@ container RegionalUnits : Using = "Geography;"
 
 		unit<uint8> diff_class : nrofrows = 4
 		{
-			attribute<string> label      : ['gelijk', 'cel valt weg door de verschuiving', 'cel komt erbij door de verschuiving', 'cel gaat naar een ander land'];
+			attribute<string> Label      : ['gelijk', 'cel valt weg door de verschuiving', 'cel komt erbij door de verschuiving', 'cel gaat naar een ander land'];
 			attribute<uint32> BrushColor : [rgb(235,235,235), rgb(215,45,45), rgb(45,110,215), rgb(245,175,40)];
 		}
 
@@ -194,7 +194,7 @@ container RegionalUnits : Using = "Geography;"
 		attribute<LambertEA>   geom_override (poly):= geom_source/geometry[geom_source_rel];
 		
 		
-		unit<uint32> StudyArea := =ModelParameters/Use_Country_selection ? 'select_with_org_rel(IsStudyArea && IsContinentalEU && !drop)' : 'select_with_org_rel(IsContinentalEU && !drop)'
+		unit<uint32> StudyArea := =ModelParameters/Use_Country_selection ? 'select_with_org_rel(IsStudyArea && IsContinentalEU && !Drop)' : 'select_with_org_rel(IsContinentalEU && !Drop)'
 		{
 			attribute<LambertEA>   geometry                                 (poly) := ../geom_override[org_rel];
 			attribute<.>           per_domain_100m    (Geography/impl/domain_100m) := poly2grid(geometry, Geography/impl/domain_100m);
@@ -224,24 +224,24 @@ container RegionalUnits : Using = "Geography;"
 	unit<uint32> Country := select_with_attr_by_cond(impl/NUTS/NUTS_RG_01M_2021_3035_gpkg, impl/NUTS/NUTS_RG_01M_2021_3035_gpkg/LEVL_CODE == 0w)
 	{
 		attribute<LambertEA> geometry_lea  (poly) := geometry_base[LambertEA];
-		attribute<bool>      IsEU                 := const(TRUE,.); 
+		attribute<bool>      IsEU                 := const(true,.); 
 
-		unit<uint32> Subset := select_with_org_rel(ModelParameters/Use_Country_selection ? NUTS_NAME == /ModelParameters/StudyArea : IsEu)
+		unit<uint32> subset := select_with_org_rel(ModelParameters/Use_Country_selection ? NUTS_NAME == /ModelParameters/StudyArea : IsEU)
 		{
 			attribute<LambertEA_base>    geometry_base              (poly) := Country/geometry_base[org_rel];
-			attribute<LambertEA_base>    geometry_BB   (poly, BoundingBox) := points2polygon(BoundingBox/point_set/point, BoundingBox/point_set/Sequence_rel, BoundingBox/point_set/ordinal);
+			attribute<LambertEA_base>    geometry_BB   (poly, BoundingBox) := points2polygon(BoundingBox/point_set/point, BoundingBox/point_set/sequence_rel, BoundingBox/point_set/ordinal);
 			
-			unit<UInt32> BoundingBox : NrOfRows = 1
+			unit<uint32> BoundingBox : nrofrows = 1
 			{
 				parameter<LambertEA_base> bottom_left  := first(lower_bound(geometry_base));
 				parameter<LambertEA_base> top_right    := first(upper_bound(geometry_base));
-				parameter<LambertEA_base> top_left     := point_xy(Get_X(bottom_left),Get_Y(top_right), LambertEA_base);
-				parameter<LambertEA_base> bottom_right := point_xy(Get_X(top_right),Get_Y(bottom_left), LambertEA_base);
+				parameter<LambertEA_base> top_left     := point_xy(get_x(bottom_left),get_y(top_right), LambertEA_base);
+				parameter<LambertEA_base> bottom_right := point_xy(get_x(top_right),get_y(bottom_left), LambertEA_base);
 				
-				unit<UInt32> point_set    : NrOfRows = 5
+				unit<uint32> point_set    : nrofrows = 5
 				{
 					attribute<LambertEA_base> point        := union_data(., top_left, top_right, bottom_right, bottom_left, top_left);
-					attribute<..>        Sequence_rel := const(0, .);
+					attribute<..>        sequence_rel := const(0, .);
 					attribute<.>         ordinal      := id(.);
 				}
 			}

@@ -4,7 +4,7 @@ container SourceData
 	#include<RegionalUnits.dms>
 
 	container Population 
-	: using = "RegionalUnits"
+	: Using = "RegionalUnits"
 	{
 		unit<ipoint> Population := = ModelParameters/PopVersie; 
 	
@@ -103,9 +103,9 @@ container SourceData
 			,  StorageReadOnly = "true";
 			parameter<string> filedata    := replace(filedata_src, '\''','', '\"',''); 
 			parameter<uint32> count_rows  := strcount(filedata, '\n') - 1;  
-			parameter<string> headerline  := readLines(filedata, void, 0);
+			parameter<string> headerline  := ReadLines(filedata, void, 0);
 			
-			unit<uint32> field := Range(uint32, 0, strcount(headerline, fieldseparator) + 1)
+			unit<uint32> field := range(uint32, 0, strcount(headerline, fieldseparator) + 1)
 			{
 				attribute<string> name_in_file := ReadArray(headerline , field, string, 0);
 				// The 2001 and 2011 POP_AGE_SEX csv's carry an unnamed first column (an R row index),
@@ -116,13 +116,13 @@ container SourceData
 				attribute<string> name        := strlen(name_in_file) > 0 ? name_in_file : 'col_'+string(id(.));
 			}
 				
-			attribute<string> bodylines (domain) := readLines(filedata, domain, headerline/ReadPos);
+			attribute<string> bodylines (domain) := ReadLines(filedata, domain, headerline/ReadPos);
 
-			container data := 
+			container Data := 
 				for_each_nedv(
 					field/name
 					,'ReadElems(
-						BodyLines
+						bodylines
 						,string
 						,'+ MakeDefined(field/name[sub_or_null(id(field),1)] + '/ReadPos','const(0, domain)')+' 
 						,16
@@ -131,19 +131,19 @@ container SourceData
 					,string
 				);
 			
-			unit<uint32> Result := domain
+			unit<uint32> result := domain
 			{
-				attribute<LAU>       LAU_rel          := rlookup(data/GISCO_ID, /SourceData/RegionalUnits/LAU/GISCO_ID);
-				attribute<LambertEA> Geometry (poly)  := SourceData/RegionalUnits/LAU/geometry[LAU_rel];
-				attribute<string>    Sex              := data/sex;
-				attribute<string>    AgeGroup         := replace(data/age, 'LT5', 'Y00_04', 'Y5-9', 'Y05_09', 'Y85-89', 'Over85', 'Y90-94', 'Over85', 'Y95-99', 'Over85', 'GE100', 'Over85','-', '_');
-				attribute<Person>    Pop              := float32(data/Pop)[Person];
+				attribute<LAU>       LAU_rel          := rlookup(Data/GISCO_ID, /SourceData/RegionalUnits/LAU/GISCO_ID);
+				attribute<LambertEA> geometry (poly)  := SourceData/RegionalUnits/LAU/geometry[LAU_rel];
+				attribute<string>    Sex              := Data/sex;
+				attribute<string>    AgeGroup         := replace(Data/age, 'LT5', 'Y00_04', 'Y5-9', 'Y05_09', 'Y85-89', 'Over85', 'Y90-94', 'Over85', 'Y95-99', 'Over85', 'GE100', 'Over85','-', '_');
+				attribute<Person>    Pop              := float32(Data/Pop)[Person];
 				
 				attribute<string>    SexAgeClass_name := Sex+'_'+AgeGroup;
 				
 				attribute<SexAgeClasses>       SexAgeClass_rel   := rlookup(SexAgeClass_name, SexAgeClasses/name);
 				attribute<Classifications/Sex> SexClass_rel      := rlookup(Sex, Classifications/Sex/name);
-				attribute<AgeClasses>          AgeClass_rel      := rlookup(AgeGroup, AgeClasses/label);
+				attribute<AgeClasses>          AgeClass_rel      := rlookup(AgeGroup, AgeClasses/Label);
 				attribute<BroadClasses>        BroadAgeClass_rel := AgeClasses/BroadClasses_rel[AgeClass_rel];
 			}
 			
@@ -154,16 +154,16 @@ container SourceData
 				// attribute<SexAgeClasses> SexAgeClass_rel := Result/SexAgeClass_rel[org_rel];
 			// }
 			
-			unit<uint32> no_LAU_rel := select_with_org_rel(!IsDefined(Result/LAU_rel) && !IsDefined(rlookup(data/GISCO_ID, RegionalUnits/LAU_org/GISCO_ID))) 
+			unit<uint32> no_LAU_rel := select_with_org_rel(!IsDefined(result/LAU_rel) && !IsDefined(rlookup(Data/GISCO_ID, RegionalUnits/LAU_org/GISCO_ID))) 
 			{
-				attribute<string>        GISCO_ID        := data/GISCO_ID[org_rel];
-				attribute<Person>        pop             := Result/Pop[org_rel];
-				attribute<SexAgeClasses> SexAgeClass_rel := Result/SexAgeClass_rel[org_rel];
+				attribute<string>        GISCO_ID        := Data/GISCO_ID[org_rel];
+				attribute<Person>        Pop             := result/Pop[org_rel];
+				attribute<SexAgeClasses> SexAgeClass_rel := result/SexAgeClass_rel[org_rel];
 				attribute<uniques>       u_rel           := rlookup(GISCO_ID, uniques/Values);
 				
 				unit<uint32> uniques := unique(GISCO_ID) 
 				{
-					attribute<Person> pop := sum(no_LAU_rel/pop, no_LAU_rel/u_rel);
+					attribute<Person> Pop := sum(no_LAU_rel/Pop, no_LAU_rel/u_rel);
 				}
 			}
 		}
